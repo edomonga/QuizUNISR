@@ -381,6 +381,20 @@ function CourseModal({ initial, onClose, onSave }: {
 }
 
 // ─── QUESTIONS TAB ────────────────────────────────────────────────────────────
+
+// Parses a "correct" cell like "A", "B,D", "1", "2,4" → 0-based indices
+function parseCorrect(val: unknown, optCount: number): number[] {
+  if (val === null || val === undefined || String(val).trim() === '') return [];
+  const str = String(val).trim().toUpperCase();
+  return str.split(/[,;]/).map(s => s.trim()).reduce<number[]>((acc, token) => {
+    // Letter: A→0, B→1 …
+    if (/^[A-Z]$/.test(token)) { const idx = token.charCodeAt(0) - 65; if (idx < optCount) acc.push(idx); }
+    // Number: 1→0, 2→1 …
+    else if (/^\d+$/.test(token)) { const idx = parseInt(token, 10) - 1; if (idx >= 0 && idx < optCount) acc.push(idx); }
+    return acc;
+  }, []);
+}
+
 function QuestionsTab() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState('');
@@ -388,8 +402,9 @@ function QuestionsTab() {
   const [allTopics, setAllTopics] = useState<Topic[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err' | 'warn'; text: string } | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editing, setEditing] = useState<Partial<Question> | null>(null);
   const [filterArea, setFilterArea] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
@@ -400,35 +415,149 @@ function QuestionsTab() {
   useEffect(() => {
     if (!selectedCourse) return;
     setLoading(true);
-    Promise.all([
-      getMacroAreas(selectedCourse),
-      getTopics(selectedCourse),
-      getQuestions(selectedCourse),
-    ]).then(([a, t, q]) => {
-      setAreas(a); setAllTopics(t); setQuestions(q);
-      setFilterArea(''); setFilterTopic('');
-      setLoading(false);
-    });
+    Promise.all([getMacroAreas(selectedCourse), getTopics(selectedCourse), getQuestions(selectedCourse)])
+      .then(([a, t, q]) => { setAreas(a); setAllTopics(t); setQuestions(q); setFilterArea(''); setFilterTopic(''); setLoading(false); });
   }, [selectedCourse]);
 
-  const flash = (type: 'ok' | 'err', text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3500); };
-
-  const reload = async () => {
-    if (!selectedCourse) return;
-    setQuestions(await getQuestions(selectedCourse));
-  };
+  const flash = (type: 'ok' | 'err' | 'warn', text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 5000); };
+  const reload = async () => { if (selectedCourse) setQuestions(await getQuestions(selectedCourse)); };
 
   const filteredQs = questions.filter(q =>
-    (!filterArea || q.macro_area_id === filterArea) &&
-    (!filterTopic || q.topic_id === filterTopic)
+    (!filterArea || q.macro_area_id === filterArea) && (!filterTopic || q.topic_id === filterTopic)
   );
-
   const visibleTopics = allTopics.filter(t => !filterArea || t.macro_area_id === filterArea);
+
+  // ── Download template ──
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
+    // Build example rows based on current areas/topics
+    const rows = [
+      ['macro_area', 'topic', 'question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'option_e', 'correct', 'explanation'],
+      [
+        areas[0]?.name ?? 'Igiene e Sanità Pubblica',
+        allTopics[0]?.name ?? 'Epidemiologia',
+        'Esempio: quale studio è adatto per malattie rare?',
+        'Studio di coorte',
+        'Studio caso-controllo',
+        'Studio sperimentale',
+        'Studio ecologico',
+        'Studio trasversale',
+        'B',
+        'Lo studio caso-controllo è ideale per malattie rare perché parte dai casi già esistenti',
+      ],
+      [
+        areas[0]?.name ?? 'Igiene e Sanità Pubblica',
+        allTopics[0]?.name ?? 'Epidemiologia',
+        'Esempio con 4 opzioni (lascia option_e vuoto)',
+        'Opzione A',
+        'Opzione B',
+        'Opzione C',
+        'Opzione D',
+        '',
+        'A',
+        '',
+      ],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    // Column widths
+    ws['!cols'] = [20, 25, 50, 20, 20, 20, 20, 20, 10, 40].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Domande');
+
+    // Second sheet: reference list of valid areas and topics
+    if (areas.length > 0) {
+      const ref: string[][] = [['macro_area (valori esatti)', 'topic (valori esatti)']];
+      areas.forEach(a => {
+        const ts = allTopics.filter(t => t.macro_area_id === a.id);
+        if (ts.length === 0) ref.push([a.name, '']);
+        else ts.forEach(t => ref.push([a.name, t.name]));
+      });
+      const ws2 = XLSX.utils.aoa_to_sheet(ref);
+      ws2['!cols'] = [{ wch: 35 }, { wch: 40 }];
+      XLSX.utils.book_append_sheet(wb, ws2, 'Aree e Argomenti');
+    }
+
+    XLSX.writeFile(wb, 'template_domande.xlsx');
+  };
+
+  // ── Parse & import Excel ──
+  const handleImport = async (file: File) => {
+    const XLSX = await import('xlsx');
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
+
+    if (rows.length === 0) { flash('err', 'Il file è vuoto o non ha righe dati.'); return; }
+
+    // Build lookup maps (case-insensitive)
+    const areaMap = new Map(areas.map(a => [a.name.trim().toLowerCase(), a]));
+    const topicMap = new Map(allTopics.map(t => [t.name.trim().toLowerCase(), t]));
+
+    const toInsert: Array<Omit<Question, 'id' | 'created_at' | 'updated_at'>> = [];
+    const errors: string[] = [];
+
+    rows.forEach((row, i) => {
+      const rowN = i + 2; // row number in Excel (1-based + header)
+      const areaName = String(row['macro_area'] ?? '').trim();
+      const topicName = String(row['topic'] ?? '').trim();
+      const questionText = String(row['question_text'] ?? '').trim();
+
+      if (!areaName || !topicName || !questionText) {
+        errors.push(`Riga ${rowN}: macro_area, topic o question_text mancante.`);
+        return;
+      }
+
+      const area = areaMap.get(areaName.toLowerCase());
+      if (!area) { errors.push(`Riga ${rowN}: macro_area "${areaName}" non trovata. Controlla la grafia.`); return; }
+
+      const topic = topicMap.get(topicName.toLowerCase());
+      if (!topic) { errors.push(`Riga ${rowN}: topic "${topicName}" non trovato. Controlla la grafia.`); return; }
+
+      // Collect options (option_a … option_e, skip empty)
+      const optKeys = ['option_a', 'option_b', 'option_c', 'option_d', 'option_e'];
+      const opts = optKeys.map(k => String(row[k] ?? '').trim()).filter(o => o !== '');
+      if (opts.length < 2) { errors.push(`Riga ${rowN}: almeno 2 opzioni richieste.`); return; }
+
+      const correctRaw = row['correct'];
+      const correctIdxs = parseCorrect(correctRaw, opts.length);
+      if (correctIdxs.length === 0) {
+        errors.push(`Riga ${rowN}: colonna "correct" non valida ("${correctRaw}"). Usa A, B, C… oppure 1, 2, 3… anche separati da virgola.`);
+        return;
+      }
+
+      toInsert.push({
+        course_id: selectedCourse,
+        macro_area_id: area.id,
+        topic_id: topic.id,
+        question_text: questionText,
+        options: opts,
+        correct_answers: correctIdxs,
+        explanation: String(row['explanation'] ?? '').trim() || undefined,
+        is_active: true,
+      });
+    });
+
+    if (errors.length > 0 && toInsert.length === 0) {
+      flash('err', `Nessuna domanda importata. Errori:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n…e altri ${errors.length - 5} errori` : ''}`);
+      return;
+    }
+
+    const { count, error } = await bulkInsertQuestions(toInsert as any);
+    if (error) { flash('err', `Errore durante l'importazione: ${error}`); return; }
+
+    let msg = `✅ ${count} domande importate con successo!`;
+    if (errors.length > 0) msg += ` ⚠️ ${errors.length} righe saltate per errori.`;
+    flash(errors.length > 0 ? 'warn' : 'ok', msg);
+    setShowImport(false);
+    reload();
+  };
 
   return (
     <div className="space-y-4">
       {msg && <Alert type={msg.type} message={msg.text} />}
 
+      {/* Filters */}
       <Card>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Select label="Materia" value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)}>
@@ -450,16 +579,38 @@ function QuestionsTab() {
         </div>
       </Card>
 
+      {/* Action bar */}
       {selectedCourse && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-sm text-gray-500">{filteredQs.length} domande</p>
-          <button onClick={() => { setEditing({}); setShowModal(true); }}
-            className="btn-primary text-sm py-2 px-4">+ Nuova domanda</button>
+          <div className="flex gap-2 flex-wrap">
+            {/* Download template */}
+            <button onClick={downloadTemplate}
+              className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 text-gray-600 font-medium px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Scarica template
+            </button>
+            {/* Import Excel */}
+            <button onClick={() => setShowImport(true)}
+              className="flex items-center gap-1.5 text-sm bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium px-3 py-2 rounded-xl hover:bg-emerald-100 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Importa Excel
+            </button>
+            {/* New question */}
+            <button onClick={() => { setEditing({}); setShowModal(true); }} className="btn-primary text-sm py-2 px-4">
+              + Nuova domanda
+            </button>
+          </div>
         </div>
       )}
 
       {loading && <Spinner className="mt-10" />}
 
+      {/* Question list */}
       {!loading && selectedCourse && filteredQs.map(q => (
         <Card key={q.id} className="border border-gray-100">
           <div className="flex items-start justify-between gap-3">
@@ -473,8 +624,7 @@ function QuestionsTab() {
               <div className="mt-2 space-y-0.5">
                 {q.options.map((opt, i) => (
                   <div key={i} className={`text-xs px-2 py-1 rounded-lg ${q.correct_answers.includes(i) ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-gray-400'}`}>
-                    {String.fromCharCode(65 + i)}. {opt}
-                    {q.correct_answers.includes(i) && ' ✓'}
+                    {String.fromCharCode(65 + i)}. {opt}{q.correct_answers.includes(i) && ' ✓'}
                   </div>
                 ))}
               </div>
@@ -484,7 +634,7 @@ function QuestionsTab() {
                 className="text-xs bg-white border border-gray-200 text-gray-600 font-medium px-2.5 py-1 rounded-lg hover:bg-gray-50">Modifica</button>
               {confirmDel === q.id ? (
                 <div className="flex gap-1">
-                  <button onClick={async () => { const { error } = await deleteQuestion(q.id); if (error) flash('err', error); else { flash('ok', 'Domanda eliminata.'); setConfirmDel(null); reload(); } }}
+                  <button onClick={async () => { const { error } = await deleteQuestion(q.id); if (error) flash('err', error); else { flash('ok', 'Eliminata.'); setConfirmDel(null); reload(); } }}
                     className="text-xs bg-red-500 text-white font-medium px-2 py-1 rounded-lg">Sì</button>
                   <button onClick={() => setConfirmDel(null)} className="text-xs bg-gray-200 text-gray-600 font-medium px-2 py-1 rounded-lg">No</button>
                 </div>
@@ -497,6 +647,24 @@ function QuestionsTab() {
         </Card>
       ))}
 
+      {!loading && selectedCourse && filteredQs.length === 0 && (
+        <Card className="text-center py-10 text-gray-400">
+          <div className="text-4xl mb-3">📭</div>
+          <p className="font-medium">Nessuna domanda trovata.</p>
+          <p className="text-sm mt-1">Importa un file Excel o aggiungi domande manualmente.</p>
+        </Card>
+      )}
+
+      {/* Import modal */}
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onDownloadTemplate={downloadTemplate}
+          onImport={handleImport}
+        />
+      )}
+
+      {/* Edit/new modal */}
       {showModal && selectedCourse && (
         <QuestionModal
           initial={editing ?? {}}
@@ -512,6 +680,92 @@ function QuestionsTab() {
         />
       )}
     </div>
+  );
+}
+
+// ─── IMPORT MODAL ─────────────────────────────────────────────────────────────
+function ImportModal({ onClose, onDownloadTemplate, onImport }: {
+  onClose: () => void;
+  onDownloadTemplate: () => void;
+  onImport: (file: File) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFile = (f: File) => {
+    if (!f.name.match(/\.(xlsx|xls)$/i)) { alert('Carica un file .xlsx o .xls'); return; }
+    setFile(f);
+  };
+
+  const handleImport = async () => {
+    if (!file) return;
+    setImporting(true);
+    await onImport(file);
+    setImporting(false);
+  };
+
+  return (
+    <Modal title="Importa domande da Excel" onClose={onClose}>
+      <div className="space-y-4">
+
+        {/* Step 1 */}
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <p className="text-sm font-semibold text-blue-800 mb-2">Passo 1 — Scarica il template</p>
+          <p className="text-xs text-blue-700 leading-relaxed mb-3">
+            Il template contiene le colonne giuste e un foglio con tutti i nomi esatti delle aree e degli argomenti da usare.
+          </p>
+          <button onClick={onDownloadTemplate}
+            className="flex items-center gap-2 text-sm bg-white border border-blue-300 text-blue-700 font-semibold px-4 py-2 rounded-xl hover:bg-blue-50 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Scarica template_domande.xlsx
+          </button>
+        </div>
+
+        {/* Step 2 */}
+        <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
+          <p className="text-sm font-semibold text-gray-700 mb-2">Passo 2 — Compila il file</p>
+          <div className="text-xs text-gray-600 space-y-1">
+            <p>• <strong>macro_area</strong> e <strong>topic</strong>: copia i nomi esatti dal secondo foglio del template</p>
+            <p>• <strong>option_a … option_e</strong>: le opzioni di risposta (option_e può essere vuota per 4 opzioni)</p>
+            <p>• <strong>correct</strong>: la lettera della risposta corretta: <code className="bg-gray-100 px-1 rounded">A</code>, <code className="bg-gray-100 px-1 rounded">B</code>, ecc. Per risposte multiple: <code className="bg-gray-100 px-1 rounded">A,C</code></p>
+            <p>• <strong>explanation</strong>: facoltativa, viene mostrata dopo la risposta nell'esercitazione</p>
+          </div>
+        </div>
+
+        {/* Step 3 — file drop */}
+        <div>
+          <p className="text-sm font-semibold text-gray-700 mb-2">Passo 3 — Carica il file compilato</p>
+          <label
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+            className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${dragOver ? 'border-[rgb(32,44,71)] bg-blue-50' : file ? 'border-emerald-400 bg-emerald-50' : 'border-gray-300 hover:border-gray-400 bg-white'}`}>
+            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+            {file ? (
+              <>
+                <div className="text-2xl mb-1">✅</div>
+                <p className="text-sm font-semibold text-emerald-700">{file.name}</p>
+                <p className="text-xs text-emerald-600 mt-0.5">{(file.size / 1024).toFixed(1)} KB — clicca per cambiare</p>
+              </>
+            ) : (
+              <>
+                <div className="text-2xl mb-1">📂</div>
+                <p className="text-sm font-medium text-gray-600">Trascina qui il file oppure clicca per selezionarlo</p>
+                <p className="text-xs text-gray-400 mt-0.5">.xlsx o .xls</p>
+              </>
+            )}
+          </label>
+        </div>
+
+        <button onClick={handleImport} disabled={!file || importing}
+          className="btn-primary w-full disabled:opacity-40">
+          {importing ? 'Importazione in corso…' : 'Importa domande →'}
+        </button>
+      </div>
+    </Modal>
   );
 }
 
