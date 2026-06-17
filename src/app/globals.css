@@ -1,0 +1,83 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: rgb(32, 44, 71);
+  --navy-light: rgb(52, 69, 110);
+  --navy-pale: rgb(240, 242, 247);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--navy-pale);
+  color: var(--navy);
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn-navy {
+  @apply bg-[rgb(32,44,71)] text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-[rgb(52,69,110)] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-outline {
+  @apply border-2 border-[rgb(32,44,71)] text-[rgb(32,44,71)] font-semibold py-2.5 px-5 rounded-lg hover:bg-[rgb(32,44,71)] hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] focus:ring-offset-2;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+}
+
+.option-btn {
+  @apply w-full text-left p-4 rounded-lg border-2 border-gray-200 hover:border-[rgb(32,44,71)] hover:bg-[rgb(240,242,247)] transition-all duration-150 cursor-pointer font-medium text-gray-700;
+}
+
+.option-btn.selected {
+  @apply border-[rgb(32,44,71)] bg-[rgb(240,242,247)] text-[rgb(32,44,71)];
+}
+
+.option-btn.correct {
+  @apply border-emerald-500 bg-emerald-50 text-emerald-800;
+}
+
+.option-btn.wrong {
+  @apply border-red-400 bg-red-50 text-red-800;
+}
+
+.option-btn.correct-reveal {
+  @apply border-emerald-500 bg-emerald-50 text-emerald-800;
+}
+
+.option-btn.disabled {
+  @apply cursor-not-allowed pointer-events-none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(32, 44, 71);
+  border-radius: 3px;
+}
+
+/* Sidebar question map */
+.q-dot {
+  @apply w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer transition-all;
+}
+.q-dot-unanswered {
+  @apply bg-gray-200 text-gray-600 hover:bg-gray-300;
+}
+.q-dot-answered {
+  @apply bg-[rgb(32,44,71)] text-white;
+}
+.q-dot-current {
+  @apply bg-[rgb(52,69,110)] text-white ring-2 ring-offset-1 ring-[rgb(32,44,71)];
+}
