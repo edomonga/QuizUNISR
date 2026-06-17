@@ -5,13 +5,12 @@
 
 :root {
   --navy: rgb(32, 44, 71);
-  --navy-light: rgb(52, 69, 110);
+  --navy-mid: rgb(52, 69, 110);
   --navy-pale: rgb(240, 242, 247);
+  --accent: rgb(99, 130, 201);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
@@ -20,64 +19,81 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.btn-navy {
-  @apply bg-[rgb(32,44,71)] text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-[rgb(52,69,110)] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+/* ── Buttons ── */
+.btn-primary {
+  @apply bg-[rgb(32,44,71)] text-white font-semibold py-2.5 px-5 rounded-xl
+         hover:bg-[rgb(52,69,110)] active:scale-[0.98]
+         transition-all duration-150
+         focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] focus:ring-offset-2
+         disabled:opacity-40 disabled:cursor-not-allowed;
+}
+.btn-secondary {
+  @apply border-2 border-[rgb(32,44,71)] text-[rgb(32,44,71)] font-semibold py-2.5 px-5 rounded-xl
+         hover:bg-[rgb(32,44,71)] hover:text-white active:scale-[0.98]
+         transition-all duration-150
+         focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] focus:ring-offset-2
+         disabled:opacity-40 disabled:cursor-not-allowed;
+}
+.btn-ghost {
+  @apply text-gray-500 font-medium py-2 px-3 rounded-lg hover:bg-gray-100
+         transition-all duration-150 focus:outline-none;
 }
 
-.btn-outline {
-  @apply border-2 border-[rgb(32,44,71)] text-[rgb(32,44,71)] font-semibold py-2.5 px-5 rounded-lg hover:bg-[rgb(32,44,71)] hover:text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] focus:ring-offset-2;
-}
-
+/* ── Cards ── */
 .card {
-  @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+  @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-5;
+}
+.card-hover {
+  @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-5
+         hover:shadow-md hover:border-[rgb(32,44,71)] transition-all duration-200 cursor-pointer;
 }
 
-.option-btn {
-  @apply w-full text-left p-4 rounded-lg border-2 border-gray-200 hover:border-[rgb(32,44,71)] hover:bg-[rgb(240,242,247)] transition-all duration-150 cursor-pointer font-medium text-gray-700;
+/* ── Quiz option buttons ── */
+.opt-btn {
+  @apply w-full text-left px-4 py-3.5 rounded-xl border-2 border-gray-200
+         font-medium text-gray-800 leading-snug
+         transition-all duration-150 cursor-pointer select-none;
 }
-
-.option-btn.selected {
+.opt-btn:not(.opt-disabled):hover {
+  @apply border-[rgb(99,130,201)] bg-blue-50;
+}
+.opt-selected {
   @apply border-[rgb(32,44,71)] bg-[rgb(240,242,247)] text-[rgb(32,44,71)];
 }
-
-.option-btn.correct {
-  @apply border-emerald-500 bg-emerald-50 text-emerald-800;
+/* After reveal — neutral options get muted but STILL visible */
+.opt-reveal-neutral {
+  @apply border-gray-200 bg-white text-gray-400;
+}
+/* The correct answer always pops green */
+.opt-correct {
+  @apply border-emerald-500 bg-emerald-50 text-emerald-900 font-semibold;
+}
+/* Wrong selection turns red */
+.opt-wrong {
+  @apply border-red-400 bg-red-50 text-red-900 font-semibold;
+}
+.opt-disabled {
+  @apply cursor-default pointer-events-none;
 }
 
-.option-btn.wrong {
-  @apply border-red-400 bg-red-50 text-red-800;
+/* ── Exam sidebar dots ── */
+.q-dot {
+  @apply w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold
+         cursor-pointer transition-all duration-150;
 }
+.q-unanswered { @apply bg-gray-200 text-gray-600 hover:bg-gray-300; }
+.q-answered   { @apply bg-[rgb(32,44,71)] text-white; }
+.q-current    { @apply bg-[rgb(99,130,201)] text-white ring-2 ring-white ring-offset-1 ring-offset-[rgb(32,44,71)]; }
 
-.option-btn.correct-reveal {
-  @apply border-emerald-500 bg-emerald-50 text-emerald-800;
+/* ── Progress bar ── */
+.progress-bar {
+  @apply h-2 bg-gray-200 rounded-full overflow-hidden;
 }
-
-.option-btn.disabled {
-  @apply cursor-not-allowed pointer-events-none;
+.progress-fill {
+  @apply h-full rounded-full transition-all duration-500;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-::-webkit-scrollbar-thumb {
-  background: rgb(32, 44, 71);
-  border-radius: 3px;
-}
-
-/* Sidebar question map */
-.q-dot {
-  @apply w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer transition-all;
-}
-.q-dot-unanswered {
-  @apply bg-gray-200 text-gray-600 hover:bg-gray-300;
-}
-.q-dot-answered {
-  @apply bg-[rgb(32,44,71)] text-white;
-}
-.q-dot-current {
-  @apply bg-[rgb(52,69,110)] text-white ring-2 ring-offset-1 ring-[rgb(32,44,71)];
-}
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(150,167,200); border-radius: 3px; }
