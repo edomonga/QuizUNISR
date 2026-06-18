@@ -9,10 +9,11 @@ import {
   getMacroAreas, upsertMacroArea, deleteMacroArea,
   getTopics, upsertTopic, deleteTopic,
   getQuestions, upsertQuestion, deleteQuestion, bulkInsertQuestions,
+  getReports, updateReportStatus, QuestionReport,
 } from '@/lib/db';
 import type { Profile, Course, MacroArea, Topic, Question, ExamRules } from '@/types';
 
-type Tab = 'users' | 'courses' | 'questions';
+type Tab = 'users' | 'courses' | 'questions' | 'reports';
 
 const DEFAULT_RULES: ExamRules = {
   total_questions: 30,
@@ -43,10 +44,10 @@ export default function AdminPage() {
         <PageHeader title="Pannello Admin" back="/dashboard" />
 
         {/* Tab bar */}
-        <div className="flex gap-1 bg-white rounded-2xl p-1 border border-gray-100 mb-6 shadow-sm">
-          {([['users', '👥 Utenti'], ['courses', '📚 Materie'], ['questions', '❓ Domande']] as [Tab, string][]).map(([t, label]) => (
+        <div className="flex gap-1 bg-white rounded-2xl p-1 border border-gray-100 mb-6 shadow-sm overflow-x-auto">
+          {([['users', '👥 Utenti'], ['courses', '📚 Materie'], ['questions', '❓ Domande'], ['reports', '🚩 Segnalazioni']] as [Tab, string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${tab === t ? 'bg-[rgb(32,44,71)] text-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+              className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${tab === t ? 'bg-[rgb(32,44,71)] text-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
               {label}
             </button>
           ))}
@@ -55,6 +56,7 @@ export default function AdminPage() {
         {tab === 'users' && <UsersTab />}
         {tab === 'courses' && <CoursesTab />}
         {tab === 'questions' && <QuestionsTab />}
+        {tab === 'reports' && <ReportsTab />}
       </div>
     </PageShell>
   );
@@ -872,3 +874,121 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
     </Modal>
   );
 }
+
+// ─── REPORTS TAB ──────────────────────────────────────────────────────────────
+function ReportsTab() {
+  const [reports, setReports] = useState<QuestionReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed' | 'resolved'>('pending');
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const data = await getReports(filter === 'all' ? undefined : filter);
+    setReports(data);
+    setLoading(false);
+  }, [filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const flash = (type: 'ok' | 'err', text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3000); };
+
+  const setStatus = async (id: string, status: 'pending' | 'reviewed' | 'resolved') => {
+    const { error } = await updateReportStatus(id, status);
+    if (error) flash('err', error);
+    else { flash('ok', 'Stato aggiornato.'); load(); }
+  };
+
+  const statusStyle: Record<string, string> = {
+    pending: 'bg-amber-100 text-amber-700',
+    reviewed: 'bg-blue-100 text-blue-700',
+    resolved: 'bg-emerald-100 text-emerald-700',
+  };
+  const statusLabel: Record<string, string> = {
+    pending: '⏳ In attesa',
+    reviewed: '🔍 In revisione',
+    resolved: '✅ Risolta',
+  };
+
+  return (
+    <div className="space-y-4">
+      {msg && <Alert type={msg.type} message={msg.text} />}
+
+      {/* Filter bar */}
+      <div className="flex gap-2 flex-wrap">
+        {(['all', 'pending', 'reviewed', 'resolved'] as const).map(f => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`text-sm font-medium px-4 py-2 rounded-xl border-2 transition-all ${filter === f ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+            {f === 'all' ? 'Tutte' : statusLabel[f]}
+          </button>
+        ))}
+      </div>
+
+      {loading && <Spinner className="mt-10" />}
+
+      {!loading && reports.length === 0 && (
+        <Card className="text-center py-10 text-gray-400">
+          <div className="text-4xl mb-3">🎉</div>
+          <p className="font-medium">Nessuna segnalazione {filter !== 'all' ? 'in questa categoria' : ''}.</p>
+        </Card>
+      )}
+
+      {!loading && reports.map(r => (
+        <Card key={r.id} className="border border-gray-100">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle[r.status]}`}>
+                  {statusLabel[r.status]}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {new Date(r.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <p className="text-sm font-semibold text-[rgb(32,44,71)] leading-snug mb-3">{r.question_text}</p>
+              <div className="bg-[rgb(240,242,247)] rounded-xl p-3 text-xs space-y-1.5">
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 flex-shrink-0 font-medium">Risposta selezionata:</span>
+                  <span className="text-red-600 font-medium">{r.selected_answer || '—'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 flex-shrink-0 font-medium">Risposta indicata come corretta:</span>
+                  <span className="text-emerald-700 font-medium">{r.correct_answer}</span>
+                </div>
+                {r.note && (
+                  <div className="flex items-start gap-2 pt-1 border-t border-gray-200">
+                    <span className="text-gray-500 flex-shrink-0 font-medium">Note:</span>
+                    <span className="text-gray-700 italic">{r.note}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-2 flex-wrap mt-2">
+            {r.status !== 'reviewed' && (
+              <button onClick={() => setStatus(r.id, 'reviewed')}
+                className="text-xs bg-blue-50 border border-blue-200 text-blue-700 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">
+                🔍 Segna in revisione
+              </button>
+            )}
+            {r.status !== 'resolved' && (
+              <button onClick={() => setStatus(r.id, 'resolved')}
+                className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors">
+                ✅ Segna come risolta
+              </button>
+            )}
+            {r.status !== 'pending' && (
+              <button onClick={() => setStatus(r.id, 'pending')}
+                className="text-xs bg-white border border-gray-200 text-gray-500 font-medium px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors">
+                ↩ Riapri
+              </button>
+            )}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
