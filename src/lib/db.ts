@@ -261,3 +261,44 @@ export async function deleteProfile(id: string): Promise<{ error: string | null 
   const { error } = await supabase.from('profiles').update({ is_active: false }).eq('id', id);
   return { error: error?.message ?? null };
 }
+
+// ─── Question reports ─────────────────────────────────────────────────────────
+
+export interface QuestionReport {
+  id: string;
+  question_id: string;
+  user_id: string;
+  question_text: string;
+  selected_answer: string;
+  correct_answer: string;
+  note: string;
+  status: 'pending' | 'reviewed' | 'resolved';
+  created_at: string;
+}
+
+export async function submitReport(report: {
+  question_id: string;
+  user_id: string;
+  question_text: string;
+  selected_answer: string;
+  correct_answer: string;
+  note: string;
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('question_reports').insert(report);
+  return { error: error?.message ?? null };
+}
+
+export async function getReports(status?: string): Promise<QuestionReport[]> {
+  let q = supabase
+    .from('question_reports')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (status) q = q.eq('status', status);
+  const { data } = await q;
+  return (data ?? []) as QuestionReport[];
+}
+
+export async function updateReportStatus(id: string, status: 'pending' | 'reviewed' | 'resolved'): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('question_reports').update({ status }).eq('id', id);
+  return { error: error?.message ?? null };
+}
