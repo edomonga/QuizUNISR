@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getCourse, getMacroAreas, getTopics, getQuestions, recordQuizAnswers } from '@/lib/db';
-import { PageShell, Card, Spinner, Checkbox, ProgressBar } from '@/components/ui';
+import { getCourse, getMacroAreas, getTopics, getQuestions, recordQuizAnswers, submitReport } from '@/lib/db';
+import { PageShell, Card, Spinner, Checkbox, ProgressBar, Modal } from '@/components/ui';
 import type { Course, MacroArea, Topic, Question } from '@/types';
 
 type Phase = 'setup' | 'quiz' | 'results';
@@ -31,6 +31,9 @@ export default function QuizPage() {
   const [cur, setCur] = useState(0);
   const [sel, setSel] = useState<number[]>([]);
   const [answered, setAnswered] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [reportNote, setReportNote] = useState('');
+  const [reportSent, setReportSent] = useState(false);
   const [log, setLog] = useState<{ question: Question; correct: boolean }[]>([]);
 
   useEffect(() => { if (!loading && !user) router.push('/login'); }, [user, loading, router]);
@@ -214,8 +217,69 @@ export default function QuizPage() {
                 {isCorrect() ? '✅ Risposta corretta!' : <>❌ Risposta errata. <span className="font-semibold">Corretta/e: {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</span></>}
                 {rawQ.explanation && <p className="mt-1 text-xs opacity-80">{rawQ.explanation}</p>}
               </div>
-              <button onClick={next} className="btn-primary w-full">{cur === quizQs.length - 1 ? 'Vedi risultati' : 'Prossima →'}</button>
+              <div className="flex gap-2">
+                <button onClick={next} className="btn-primary flex-1">{cur === quizQs.length - 1 ? 'Vedi risultati' : 'Prossima →'}</button>
+                <button
+                  onClick={() => { setShowReport(true); setReportNote(''); setReportSent(false); }}
+                  title="Segnala un problema con questa domanda"
+                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border-2 border-amber-200 bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors flex-shrink-0">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Segnala
+                </button>
+              </div>
             </>
+          )}
+
+          {showReport && (
+            <Modal title="Segnala un problema" onClose={() => setShowReport(false)}>
+              {reportSent ? (
+                <div className="text-center py-4">
+                  <div className="text-4xl mb-3">✅</div>
+                  <h3 className="font-semibold text-[rgb(32,44,71)] mb-2">Segnalazione inviata!</h3>
+                  <p className="text-gray-500 text-sm mb-4">Grazie per il tuo contributo. Gli amministratori verificheranno la domanda.</p>
+                  <button onClick={() => setShowReport(false)} className="btn-primary px-8">Chiudi</button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-700 leading-relaxed">
+                    <p className="font-medium text-[rgb(32,44,71)] mb-1">Domanda segnalata:</p>
+                    <p className="text-xs">{rawQ.question_text}</p>
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <p><span className="font-medium">Risposta selezionata:</span> {sel.length > 0 ? displayOpts[sel[0]] : 'Nessuna'}</p>
+                    <p><span className="font-medium">Risposta indicata come corretta:</span> {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Note aggiuntive <span className="text-gray-400 font-normal">(opzionale)</span></label>
+                    <textarea
+                      value={reportNote}
+                      onChange={e => setReportNote(e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] resize-none"
+                      rows={3}
+                      placeholder="Es. La risposta corretta dovrebbe essere B perché..."
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!user) return;
+                      await submitReport({
+                        question_id: rawQ.id,
+                        user_id: user.id,
+                        question_text: rawQ.question_text,
+                        selected_answer: sel.length > 0 ? displayOpts[sel[0]] : 'Nessuna',
+                        correct_answer: shuffledCorrect.map(i => displayOpts[i]).join(', '),
+                        note: reportNote,
+                      });
+                      setReportSent(true);
+                    }}
+                    className="btn-primary w-full">
+                    Invia segnalazione
+                  </button>
+                </div>
+              )}
+            </Modal>
           )}
         </div>
       </PageShell>
