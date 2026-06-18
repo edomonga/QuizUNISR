@@ -126,8 +126,22 @@ export default function QuizPage() {
 
   // ── Quiz phase ──
   if (phase === 'quiz') {
-    const q = quizQs[cur];
+    const rawQ = quizQs[cur];
     const allowMultiple = course.exam_rules.allow_multiple_correct;
+
+    // Shuffle options once per question (lazily, stored on the object)
+    if (!(rawQ as any)._shuffled) {
+      const idxs = rawQ.options.map((_: unknown, i: number) => i);
+      for (let i = idxs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+      }
+      (rawQ as any)._sopts = idxs.map((i: number) => rawQ.options[i]);
+      (rawQ as any)._scorrect = rawQ.correct_answers.map((o: number) => idxs.indexOf(o));
+      (rawQ as any)._shuffled = true;
+    }
+    const displayOpts: string[] = (rawQ as any)._sopts;
+    const shuffledCorrect: number[] = (rawQ as any)._scorrect;
 
     const pick = (idx: number) => {
       if (answered) return;
@@ -141,14 +155,12 @@ export default function QuizPage() {
 
     const confirmMultiple = () => { if (sel.length > 0) setAnswered(true); };
 
-    const isCorrect = () => {
-      const correct = q.correct_answers;
-      return sel.length === correct.length && sel.every(i => correct.includes(i));
-    };
+    const isCorrect = () =>
+      sel.length === shuffledCorrect.length && sel.every(i => shuffledCorrect.includes(i));
 
     const next = () => {
       const c = isCorrect();
-      const entry = { question: q, correct: c };
+      const entry = { question: rawQ, correct: c };
       const newLog = [...log, entry];
       setLog(newLog);
       if (cur === quizQs.length - 1) {
@@ -169,14 +181,14 @@ export default function QuizPage() {
             <span className="text-sm text-gray-400 tabular-nums flex-shrink-0">{cur + 1}/{quizQs.length}</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full font-medium">{q.macro_area_name}</span>
-            <span className="text-xs text-gray-400">{q.topic_name}</span>
+            <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full font-medium">{rawQ.macro_area_name}</span>
+            <span className="text-xs text-gray-400">{rawQ.topic_name}</span>
           </div>
-          <Card><p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{q.question_text}</p></Card>
+          <Card><p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{rawQ.question_text}</p></Card>
           {allowMultiple && !answered && <p className="text-xs text-amber-600 font-medium">⚠️ Possono esserci più risposte corrette</p>}
           <div className="space-y-2">
-            {q.options.map((opt, idx) => {
-              const isCorr = q.correct_answers.includes(idx);
+            {displayOpts.map((opt: string, idx: number) => {
+              const isCorr = shuffledCorrect.includes(idx);
               const isSel = sel.includes(idx);
               let cls = 'opt-btn';
               if (answered) {
@@ -199,8 +211,8 @@ export default function QuizPage() {
           {answered && (
             <>
               <div className={`p-3.5 rounded-xl text-sm font-medium border ${isCorrect() ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
-                {isCorrect() ? '✅ Risposta corretta!' : <>❌ Risposta errata. <span className="font-semibold">Corretta/e: {q.correct_answers.map(i => q.options[i]).join(', ')}</span></>}
-                {q.explanation && <p className="mt-1 text-xs opacity-80">{q.explanation}</p>}
+                {isCorrect() ? '✅ Risposta corretta!' : <>❌ Risposta errata. <span className="font-semibold">Corretta/e: {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</span></>}
+                {rawQ.explanation && <p className="mt-1 text-xs opacity-80">{rawQ.explanation}</p>}
               </div>
               <button onClick={next} className="btn-primary w-full">{cur === quizQs.length - 1 ? 'Vedi risultati' : 'Prossima →'}</button>
             </>
