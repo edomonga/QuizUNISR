@@ -172,6 +172,7 @@ function CoursesTab() {
   const [editingCourse, setEditingCourse] = useState<Partial<Course> | null>(null);
   const [showAreaModal, setShowAreaModal] = useState<{ courseId: string } | null>(null);
   const [showTopicModal, setShowTopicModal] = useState<{ courseId: string; areaId: string } | null>(null);
+  const [confirmDelCourse, setConfirmDelCourse] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const cs = await getCourses();
@@ -210,12 +211,29 @@ function CoursesTab() {
                 <p className="text-xs text-gray-400">{course.subtitle}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${course.is_available ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                 {course.is_available ? 'Attiva' : 'Disattiva'}
               </span>
               <button onClick={() => { setEditingCourse(course); setShowCourseModal(true); }}
                 className="text-xs bg-white border border-gray-200 text-gray-600 font-medium px-2.5 py-1 rounded-lg hover:bg-gray-50">Modifica</button>
+              {confirmDelCourse === course.id ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-red-600 font-medium">Sicuro? Elimina anche tutte le domande!</span>
+                  <button onClick={async () => {
+                    const { error } = await deleteCourse(course.id);
+                    if (error) flash('err', error);
+                    else { flash('ok', `Materia "${course.name}" eliminata.`); setConfirmDelCourse(null); load(); }
+                  }} className="text-xs bg-red-500 text-white font-semibold px-2.5 py-1 rounded-lg hover:bg-red-600">Sì, elimina</button>
+                  <button onClick={() => setConfirmDelCourse(null)}
+                    className="text-xs bg-gray-200 text-gray-600 font-medium px-2.5 py-1 rounded-lg hover:bg-gray-300">Annulla</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmDelCourse(course.id)}
+                  className="text-xs bg-white border border-red-200 text-red-500 font-medium px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors">
+                  Elimina materia
+                </button>
+              )}
             </div>
           </div>
 
