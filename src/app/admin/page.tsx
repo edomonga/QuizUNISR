@@ -30,6 +30,7 @@ export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('users');
+  const [jumpText, setJumpText] = useState('');
 
   useEffect(() => {
     if (!loading && (!user || !user.is_admin)) router.push('/dashboard');
@@ -55,8 +56,8 @@ export default function AdminPage() {
 
         {tab === 'users' && <UsersTab />}
         {tab === 'courses' && <CoursesTab />}
-        {tab === 'questions' && <QuestionsTab />}
-        {tab === 'reports' && <ReportsTab />}
+        {tab === 'questions' && <QuestionsTab jumpToText={jumpText} onJumpHandled={() => setJumpText('')} />}
+        {tab === 'reports' && <ReportsTab onGotoQuestion={(text) => { setJumpText(text); setTab('questions'); }} />}
       </div>
     </PageShell>
   );
@@ -415,7 +416,7 @@ function parseCorrect(val: unknown, optCount: number): number[] {
   }, []);
 }
 
-function QuestionsTab() {
+function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string; onJumpHandled?: () => void }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState('');
   const [areas, setAreas] = useState<MacroArea[]>([]);
@@ -428,22 +429,33 @@ function QuestionsTab() {
   const [editing, setEditing] = useState<Partial<Question> | null>(null);
   const [filterArea, setFilterArea] = useState('');
   const [filterTopic, setFilterTopic] = useState('');
+  const [searchText, setSearchText] = useState('');
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
   useEffect(() => { getCourses().then(setCourses); }, []);
+
+  // Jump to a specific question from Reports tab
+  useEffect(() => {
+    if (jumpToText) {
+      setSearchText(jumpToText);
+      if (onJumpHandled) onJumpHandled();
+    }
+  }, [jumpToText]);
 
   useEffect(() => {
     if (!selectedCourse) return;
     setLoading(true);
     Promise.all([getMacroAreas(selectedCourse), getTopics(selectedCourse), getQuestions(selectedCourse)])
-      .then(([a, t, q]) => { setAreas(a); setAllTopics(t); setQuestions(q); setFilterArea(''); setFilterTopic(''); setLoading(false); });
+      .then(([a, t, q]) => { setAreas(a); setAllTopics(t); setQuestions(q); setFilterArea(''); setFilterTopic(''); setSearchText(''); setLoading(false); });
   }, [selectedCourse]);
 
   const flash = (type: 'ok' | 'err' | 'warn', text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 5000); };
   const reload = async () => { if (selectedCourse) setQuestions(await getQuestions(selectedCourse)); };
 
   const filteredQs = questions.filter(q =>
-    (!filterArea || q.macro_area_id === filterArea) && (!filterTopic || q.topic_id === filterTopic)
+    (!filterArea || q.macro_area_id === filterArea) &&
+    (!filterTopic || q.topic_id === filterTopic) &&
+    (!searchText || q.question_text.toLowerCase().includes(searchText.toLowerCase()))
   );
   const visibleTopics = allTopics.filter(t => !filterArea || t.macro_area_id === filterArea);
 
@@ -598,6 +610,25 @@ function QuestionsTab() {
           )}
         </div>
       </Card>
+
+      {/* Search bar */}
+      {selectedCourse && (
+        <div className="relative">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            placeholder="Cerca nel testo delle domande…"
+            className="w-full border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] bg-white"
+          />
+          {searchText && (
+            <button onClick={() => setSearchText('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+          )}
+        </div>
+      )}
 
       {/* Action bar */}
       {selectedCourse && (
@@ -876,7 +907,7 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
 }
 
 // ─── REPORTS TAB ──────────────────────────────────────────────────────────────
-function ReportsTab() {
+function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => void }) {
   const [reports, setReports] = useState<QuestionReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed' | 'resolved'>('pending');
@@ -967,6 +998,14 @@ function ReportsTab() {
 
           {/* Action buttons */}
           <div className="flex gap-2 flex-wrap mt-2">
+            <button
+              onClick={() => onGotoQuestion && onGotoQuestion(r.question_text.slice(0, 60))}
+              className="text-xs bg-[rgb(32,44,71)] text-white font-medium px-3 py-1.5 rounded-lg hover:bg-[rgb(52,69,110)] transition-colors flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              Vai alla domanda
+            </button>
             {r.status !== 'reviewed' && (
               <button onClick={() => setStatus(r.id, 'reviewed')}
                 className="text-xs bg-blue-50 border border-blue-200 text-blue-700 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">
@@ -991,4 +1030,3 @@ function ReportsTab() {
     </div>
   );
 }
-
