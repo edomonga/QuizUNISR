@@ -359,43 +359,147 @@ function CourseModal({ initial, onClose, onSave }: {
     exam_rules: initial.exam_rules ?? DEFAULT_RULES,
     ...(initial.id ? { id: initial.id } : {}),
   });
+  const [courseAreas, setCourseAreas] = useState<MacroArea[]>([]);
+  // distribution: areaId -> count (local state for the form)
+  const [distribution, setDistribution] = useState<Record<string, number>>(initial.exam_rules?.distribution ?? {});
+
+  // Load existing macro areas if editing
+  useEffect(() => {
+    if (initial.id) {
+      getMacroAreas(initial.id).then(areas => {
+        setCourseAreas(areas);
+        // Init distribution counts from existing rules
+        const dist = initial.exam_rules?.distribution ?? {};
+        const init: Record<string, number> = {};
+        areas.forEach(a => { init[a.id] = dist[a.id] ?? 0; });
+        setDistribution(init);
+      });
+    }
+  }, [initial.id]);
+
   const rule = form.exam_rules;
   const setRule = (patch: Partial<ExamRules>) => setForm(f => ({ ...f, exam_rules: { ...f.exam_rules, ...patch } }));
 
+  // Auto-calculate total from distribution
+  const distTotal = Object.values(distribution).reduce((s, n) => s + n, 0);
+
+  const handleSave = () => {
+    if (!form.name) return;
+    // Merge distribution into exam_rules, recalculate total
+    const finalRules = {
+      ...form.exam_rules,
+      distribution,
+      total_questions: distTotal > 0 ? distTotal : form.exam_rules.total_questions,
+    };
+    onSave({ ...form, exam_rules: finalRules });
+  };
+
+  const ACCENT_OPTIONS = [
+    { label: '🔵 Blu', accent: 'bg-blue-600', text: 'text-blue-700', border: 'border-blue-200', preview: 'bg-blue-600' },
+    { label: '🟢 Verde', accent: 'bg-emerald-600', text: 'text-emerald-700', border: 'border-emerald-200', preview: 'bg-emerald-600' },
+    { label: '🟣 Viola', accent: 'bg-purple-600', text: 'text-purple-700', border: 'border-purple-200', preview: 'bg-purple-600' },
+    { label: '🔴 Rosso', accent: 'bg-rose-600', text: 'text-rose-700', border: 'border-rose-200', preview: 'bg-rose-600' },
+    { label: '🟠 Arancio', accent: 'bg-orange-500', text: 'text-orange-700', border: 'border-orange-200', preview: 'bg-orange-500' },
+    { label: '🩵 Azzurro', accent: 'bg-cyan-600', text: 'text-cyan-700', border: 'border-cyan-200', preview: 'bg-cyan-600' },
+  ];
+
   return (
     <Modal title={initial.id ? 'Modifica materia' : 'Nuova materia'} onClose={onClose}>
-      <div className="space-y-4">
+      <div className="space-y-5">
+
+        {/* Basic info */}
         <div className="grid grid-cols-2 gap-3">
           <Input label="Nome materia *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="es. Farmacologia" />
           <Input label="Icona (emoji)" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} placeholder="💊" />
         </div>
         <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
 
+        {/* Color picker */}
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Colore tema</p>
+          <div className="flex flex-wrap gap-2">
+            {ACCENT_OPTIONS.map(opt => (
+              <button key={opt.accent} type="button"
+                onClick={() => setForm(f => ({ ...f, accent_color: opt.accent, text_color: opt.text, border_color: opt.border }))}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 text-xs font-medium transition-all ${form.accent_color === opt.accent ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
+                <span className={`w-3 h-3 rounded-full ${opt.preview}`} />
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Exam rules */}
         <div className="border-t border-gray-100 pt-4">
-          <p className="text-sm font-semibold text-[rgb(32,44,71)] mb-3">Regole esame</p>
+          <p className="text-sm font-semibold text-[rgb(32,44,71)] mb-3">⏱️ Regole esame</p>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="N° domande totali" type="number" value={rule.total_questions} onChange={e => setRule({ total_questions: +e.target.value })} min={1} />
             <Input label="Tempo (minuti)" type="number" value={rule.time_limit_seconds / 60} onChange={e => setRule({ time_limit_seconds: +e.target.value * 60 })} min={1} />
-            <Input label="Punti risposta corretta" type="number" step="0.1" value={rule.correct_score} onChange={e => setRule({ correct_score: +e.target.value })} />
-            <Input label="Penalità risposta errata" type="number" step="0.1" value={rule.wrong_penalty} onChange={e => setRule({ wrong_penalty: +e.target.value })} />
             <Select label="Opzioni per domanda" value={rule.options_per_question} onChange={e => setRule({ options_per_question: +e.target.value })}>
               <option value={3}>3 opzioni</option>
               <option value={4}>4 opzioni</option>
               <option value={5}>5 opzioni</option>
             </Select>
-            <div className="flex items-center gap-2 mt-6">
-              <input type="checkbox" id="multi" checked={rule.allow_multiple_correct} onChange={e => setRule({ allow_multiple_correct: e.target.checked })} className="accent-[rgb(32,44,71)]" />
-              <label htmlFor="multi" className="text-sm text-gray-600 cursor-pointer">Risposte multiple corrette</label>
-            </div>
+            <Input label="Punti risposta corretta" type="number" step="0.1" value={rule.correct_score} onChange={e => setRule({ correct_score: +e.target.value })} />
+            <Input label="Penalità risposta errata" type="number" step="0.25" value={rule.wrong_penalty} onChange={e => setRule({ wrong_penalty: +e.target.value })} />
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <input type="checkbox" id="multi" checked={rule.allow_multiple_correct} onChange={e => setRule({ allow_multiple_correct: e.target.checked })} className="accent-[rgb(32,44,71)]" />
+            <label htmlFor="multi" className="text-sm text-gray-600 cursor-pointer">Ammetti risposte multiple corrette</label>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Distribution per macro area */}
+        {courseAreas.length > 0 && (
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-[rgb(32,44,71)]">📊 Domande per area nell'esame</p>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${distTotal > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                Totale: {distTotal} domande
+              </span>
+            </div>
+            <div className="space-y-2">
+              {courseAreas.map(area => (
+                <div key={area.id} className="flex items-center gap-3 p-3 bg-[rgb(240,242,247)] rounded-xl">
+                  <span className="flex-1 text-sm font-medium text-gray-700 truncate">{area.name}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button type="button"
+                      onClick={() => setDistribution(d => ({ ...d, [area.id]: Math.max(0, (d[area.id] ?? 0) - 1) }))}
+                      className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">−</button>
+                    <input
+                      type="number"
+                      min={0}
+                      value={distribution[area.id] ?? 0}
+                      onChange={e => setDistribution(d => ({ ...d, [area.id]: Math.max(0, +e.target.value) }))}
+                      className="w-14 text-center border border-gray-300 rounded-lg px-1 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"
+                    />
+                    <button type="button"
+                      onClick={() => setDistribution(d => ({ ...d, [area.id]: (d[area.id] ?? 0) + 1 }))}
+                      className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {distTotal > 0 && (
+              <p className="text-xs text-gray-400 mt-2">
+                💡 Il totale domande dell'esame verrà impostato automaticamente a <strong>{distTotal}</strong>.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!initial.id && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
+            💡 La distribuzione delle domande per area sarà disponibile dopo aver creato la materia e aggiunto le macro-aree.
+          </div>
+        )}
+
+        {/* Visibility */}
+        <div className="flex items-center gap-2 pt-1">
           <input type="checkbox" id="avail" checked={form.is_available} onChange={e => setForm(f => ({ ...f, is_available: e.target.checked }))} className="accent-[rgb(32,44,71)]" />
           <label htmlFor="avail" className="text-sm text-gray-600 cursor-pointer">Materia visibile agli studenti</label>
         </div>
 
-        <button onClick={() => form.name && onSave(form)} className="btn-primary w-full">Salva materia</button>
+        <button onClick={handleSave} className="btn-primary w-full">Salva materia</button>
       </div>
     </Modal>
   );
