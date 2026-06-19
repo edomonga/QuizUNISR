@@ -589,27 +589,35 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
     <div className="space-y-4">
       {msg && <Alert type={msg.type} message={msg.text} />}
 
-      {/* Filters */}
-      <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Select label="Materia" value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)}>
-            <option value="">— Seleziona —</option>
-            {courses.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </Select>
-          {selectedCourse && (
-            <>
-              <Select label="Filtra per area" value={filterArea} onChange={e => { setFilterArea(e.target.value); setFilterTopic(''); }}>
-                <option value="">Tutte le aree</option>
-                {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
-              <Select label="Filtra per argomento" value={filterTopic} onChange={e => setFilterTopic(e.target.value)}>
-                <option value="">Tutti gli argomenti</option>
-                {visibleTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </Select>
-            </>
-          )}
+      {/* Course picker */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Seleziona materia</p>
+        <div className="flex flex-wrap gap-2">
+          {courses.map(c => (
+            <button key={c.id} onClick={() => setSelectedCourse(c.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 font-medium text-sm transition-all ${selectedCourse === c.id ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:border-[rgb(32,44,71)] hover:text-[rgb(32,44,71)]'}`}>
+              <span>{c.icon}</span>
+              <span>{c.name}</span>
+            </button>
+          ))}
         </div>
-      </Card>
+      </div>
+
+      {/* Area + topic filters */}
+      {selectedCourse && (
+        <Card className="py-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Select label="Filtra per area" value={filterArea} onChange={e => { setFilterArea(e.target.value); setFilterTopic(''); }}>
+              <option value="">Tutte le aree</option>
+              {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+            <Select label="Filtra per argomento" value={filterTopic} onChange={e => setFilterTopic(e.target.value)}>
+              <option value="">Tutti gli argomenti</option>
+              {visibleTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </Select>
+          </div>
+        </Card>
+      )}
 
       {/* Search bar */}
       {selectedCourse && (
@@ -912,6 +920,15 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed' | 'resolved'>('pending');
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  // Inline edit state
+  const [editingReport, setEditingReport] = useState<QuestionReport | null>(null);
+  const [editQuestion, setEditQuestion] = useState<Question | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
+  // Edit form state
+  const [editText, setEditText] = useState('');
+  const [editOptions, setEditOptions] = useState<string[]>([]);
+  const [editCorrects, setEditCorrects] = useState<number[]>([]);
+  const [editExplanation, setEditExplanation] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -928,6 +945,52 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
     const { error } = await updateReportStatus(id, status);
     if (error) flash('err', error);
     else { flash('ok', 'Stato aggiornato.'); load(); }
+  };
+
+  // Open edit modal — fetch full question from DB
+  const openEdit = async (r: QuestionReport) => {
+    setEditingReport(r);
+    setEditLoading(true);
+    // fetch question directly
+    const { data } = await (await import('@/lib/supabase')).supabase
+      .from('questions')
+      .select('*')
+      .eq('id', r.question_id)
+      .single();
+    if (data) {
+      setEditQuestion(data as Question);
+      setEditText(data.question_text);
+      setEditOptions(data.options);
+      setEditCorrects(data.correct_answers);
+      setEditExplanation(data.explanation || '');
+    }
+    setEditLoading(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editQuestion) return;
+    const { error } = await upsertQuestion({
+      id: editQuestion.id,
+      course_id: editQuestion.course_id,
+      macro_area_id: editQuestion.macro_area_id,
+      topic_id: editQuestion.topic_id,
+      question_text: editText,
+      options: editOptions,
+      correct_answers: editCorrects,
+      explanation: editExplanation || undefined,
+      is_active: editQuestion.is_active,
+    });
+    if (error) { flash('err', error); return; }
+    flash('ok', 'Domanda aggiornata con successo!');
+    // Also mark report as resolved
+    if (editingReport) await updateReportStatus(editingReport.id, 'resolved');
+    setEditingReport(null);
+    setEditQuestion(null);
+    load();
+  };
+
+  const toggleEditCorrect = (idx: number) => {
+    setEditCorrects(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
   };
 
   const statusStyle: Record<string, string> = {
@@ -966,7 +1029,7 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
 
       {!loading && reports.map(r => (
         <Card key={r.id} className="border border-gray-100">
-          <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-start gap-3 mb-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle[r.status]}`}>
@@ -983,7 +1046,7 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
                   <span className="text-red-600 font-medium">{r.selected_answer || '—'}</span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <span className="text-gray-500 flex-shrink-0 font-medium">Risposta indicata come corretta:</span>
+                  <span className="text-gray-500 flex-shrink-0 font-medium">Indicata come corretta:</span>
                   <span className="text-emerald-700 font-medium">{r.correct_answer}</span>
                 </div>
                 {r.note && (
@@ -998,24 +1061,24 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
 
           {/* Action buttons */}
           <div className="flex gap-2 flex-wrap mt-2">
-            <button
-              onClick={() => onGotoQuestion && onGotoQuestion(r.question_text.slice(0, 60))}
-              className="text-xs bg-[rgb(32,44,71)] text-white font-medium px-3 py-1.5 rounded-lg hover:bg-[rgb(52,69,110)] transition-colors flex items-center gap-1.5">
+            {/* Main CTA: edit question directly */}
+            <button onClick={() => openEdit(r)}
+              className="flex items-center gap-1.5 text-xs bg-[rgb(32,44,71)] text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-[rgb(52,69,110)] transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
-              Vai alla domanda
+              Modifica domanda
             </button>
             {r.status !== 'reviewed' && (
               <button onClick={() => setStatus(r.id, 'reviewed')}
                 className="text-xs bg-blue-50 border border-blue-200 text-blue-700 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">
-                🔍 Segna in revisione
+                🔍 In revisione
               </button>
             )}
             {r.status !== 'resolved' && (
               <button onClick={() => setStatus(r.id, 'resolved')}
                 className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors">
-                ✅ Segna come risolta
+                ✅ Risolta
               </button>
             )}
             {r.status !== 'pending' && (
@@ -1027,6 +1090,70 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
           </div>
         </Card>
       ))}
+
+      {/* Inline edit modal */}
+      {editingReport && (
+        <Modal title="Modifica domanda segnalata" onClose={() => { setEditingReport(null); setEditQuestion(null); }}>
+          {editLoading ? (
+            <div className="text-center py-8"><Spinner /></div>
+          ) : !editQuestion ? (
+            <div className="text-center py-8 text-gray-400">
+              <p>Domanda non trovata — potrebbe essere stata eliminata.</p>
+              <button onClick={() => setEditingReport(null)} className="btn-primary mt-4 px-6">Chiudi</button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Context from report */}
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                <p className="font-semibold">⚠️ Segnalazione studente:</p>
+                <p>Risposta selezionata: <span className="font-medium text-red-700">{editingReport.selected_answer}</span></p>
+                <p>Risposta indicata corretta: <span className="font-medium text-emerald-700">{editingReport.correct_answer}</span></p>
+                {editingReport.note && <p>Note: <span className="italic">{editingReport.note}</span></p>}
+              </div>
+
+              <Textarea label="Testo domanda" value={editText} onChange={e => setEditText(e.target.value)} rows={3} />
+
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Opzioni <span className="text-xs text-gray-400 font-normal">(clicca la casella per marcare come corretta)</span>
+                </p>
+                <div className="space-y-2">
+                  {editOptions.map((opt, i) => (
+                    <div key={i} className={`flex items-center gap-2 p-2.5 rounded-xl border-2 transition-colors ${editCorrects.includes(i) ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
+                      <button type="button" onClick={() => toggleEditCorrect(i)}
+                        className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${editCorrects.includes(i) ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300 bg-white'}`}>
+                        {editCorrects.includes(i) && (
+                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                      <span className="text-xs font-bold text-gray-400 w-4">{String.fromCharCode(65 + i)}.</span>
+                      <input
+                        value={opt}
+                        onChange={e => { const o = [...editOptions]; o[i] = e.target.value; setEditOptions(o); }}
+                        className="flex-1 border-0 bg-transparent text-sm focus:outline-none"
+                        placeholder={`Opzione ${String.fromCharCode(65 + i)}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Textarea label="Spiegazione (opzionale)" value={editExplanation} onChange={e => setEditExplanation(e.target.value)} rows={2} placeholder="Aggiungi una spiegazione per la risposta corretta…" />
+
+              <div className="flex gap-3">
+                <button onClick={() => { setEditingReport(null); setEditQuestion(null); }} className="btn-secondary flex-1">
+                  Annulla
+                </button>
+                <button onClick={handleSaveEdit} className="btn-primary flex-1">
+                  Salva e segna come risolta
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
