@@ -302,3 +302,78 @@ export async function updateReportStatus(id: string, status: 'pending' | 'review
   const { error } = await supabase.from('question_reports').update({ status }).eq('id', id);
   return { error: error?.message ?? null };
 }
+
+// ─── Unseen questions tracking ────────────────────────────────────────────────
+
+/** Returns question IDs the user has already seen in this course */
+export async function getSeenQuestionIds(userId: string, courseId: string): Promise<Set<string>> {
+  const { data } = await supabase
+    .from('user_stats')
+    .select('topic_id')
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .gt('total', 0);
+  // user_stats tracks by topic, not question — we need per-question tracking
+  // Use a dedicated seen table if available, otherwise fall back to empty set
+  const { data: seen } = await supabase
+    .from('user_questions_seen')
+    .select('question_id')
+    .eq('user_id', userId)
+    .eq('course_id', courseId);
+  return new Set((seen ?? []).map((r: any) => r.question_id));
+}
+
+/** Mark questions as seen after a quiz session */
+export async function markQuestionsSeen(
+  userId: string,
+  courseId: string,
+  questionIds: string[]
+): Promise<void> {
+  if (questionIds.length === 0) return;
+  const rows = questionIds.map(qid => ({
+    user_id: userId,
+    course_id: courseId,
+    question_id: qid,
+  }));
+  // upsert — ignore duplicates
+  await supabase.from('user_questions_seen').upsert(rows, { ignoreDuplicates: true });
+}
+
+/** Get unseen questions for a course filtered by areas/topics */
+export async function getUnseenQuestions(
+  userId: string,
+  courseId: string,
+  filters?: { macroAreaIds?: string[]; topicIds?: string[] }
+): Promise<Question[]> {
+  const seenIds = await getSeenQuestionIds(userId, courseId);
+
+  let q = supabase
+    .from('questions')
+    .select('*, macro_areas(name), topics(name)')
+    .eq('course_id', courseId)
+    .eq('is_active', true);
+
+  if (filters?.macroAreaIds?.length) q = q.in('macro_area_id', filters.macroAreaIds);
+  if (filters?.topicIds?.length) q = q.in('topic_id', filters.topicIds);
+
+  const { data } = await q;
+  const all = (data ?? []).map((row: any) => ({
+    ...row,
+    macro_area_name: row.macro_areas?.name,
+    topic_name: row.topics?.name,
+  })) as Question[];
+
+  // Filter out seen
+  return seenIds.size > 0 ? all.filter(q => !seenIds.has(q.id)) : all;
+}
+
+/** Count unseen questions for a course */
+export async function countUnseenQuestions(userId: string, courseId: string): Promise<{ unseen: number; total: number }> {
+  const seenIds = await getSeenQuestionIds(userId, courseId);
+  const { count: total } = await supabase
+    .from('questions')
+    .select('id', { count: 'exact', head: true })
+    .eq('course_id', courseId)
+    .eq('is_active', true);
+  return { unseen: (total ?? 0) - seenIds.size, total: total ?? 0 };
+}
