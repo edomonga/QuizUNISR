@@ -1,12 +1,37 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getCourse, getMacroAreas, getTopics, getQuestions, recordQuizAnswers, submitReport } from '@/lib/db';
+import {
+  getCourse, getMacroAreas, getTopics, getQuestions,
+  recordQuizAnswers, submitReport,
+  getUnseenQuestions, countUnseenQuestions, markQuestionsSeen,
+} from '@/lib/db';
 import { PageShell, Card, Spinner, Checkbox, ProgressBar, Modal } from '@/components/ui';
 import type { Course, MacroArea, Topic, Question } from '@/types';
 
 type Phase = 'setup' | 'quiz' | 'results';
+type QuizMode = 'all' | 'unseen';
+
+// Shuffle options for a question respecting shuffle_options flag
+function prepareQuestion(q: Question): Question & { _sopts: string[]; _scorrect: number[]; _shuffled: boolean } {
+  const raw = q as any;
+  if (raw._shuffled) return raw;
+  if (q.shuffle_options === false) {
+    raw._sopts = [...q.options];
+    raw._scorrect = [...q.correct_answers];
+  } else {
+    const idxs = q.options.map((_: unknown, i: number) => i);
+    for (let i = idxs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+    }
+    raw._sopts = idxs.map((i: number) => q.options[i]);
+    raw._scorrect = q.correct_answers.map((o: number) => idxs.indexOf(o));
+  }
+  raw._shuffled = true;
+  return raw;
+}
 
 export default function QuizPage() {
   const { user, loading } = useAuth();
@@ -20,12 +45,16 @@ export default function QuizPage() {
   const [allQs, setAllQs] = useState<Question[]>([]);
   const [fetching, setFetching] = useState(true);
 
-  // Setup state
+  // Unseen stats
+  const [unseenCount, setUnseenCount] = useState<{ unseen: number; total: number } | null>(null);
+
+  // Setup
   const [selAreas, setSelAreas] = useState<string[]>([]);
   const [selTopics, setSelTopics] = useState<string[]>([]);
   const [count, setCount] = useState(10);
+  const [mode, setMode] = useState<QuizMode>('all');
 
-  // Quiz state
+  // Quiz
   const [phase, setPhase] = useState<Phase>('setup');
   const [quizQs, setQuizQs] = useState<Question[]>([]);
   const [cur, setCur] = useState(0);
@@ -38,11 +67,19 @@ export default function QuizPage() {
 
   useEffect(() => { if (!loading && !user) router.push('/login'); }, [user, loading, router]);
 
-  useEffect(() => {
-    if (!courseId) return;
-    Promise.all([getCourse(courseId), getMacroAreas(courseId), getTopics(courseId), getQuestions(courseId, { activeOnly: true })])
-      .then(([c, a, t, q]) => { setCourse(c); setAreas(a); setTopics(t); setAllQs(q); setFetching(false); });
-  }, [courseId]);
+  const loadData = useCallback(async () => {
+    if (!courseId || !user) return;
+    const [c, a, t, q] = await Promise.all([
+      getCourse(courseId), getMacroAreas(courseId),
+      getTopics(courseId), getQuestions(courseId, { activeOnly: true }),
+    ]);
+    setCourse(c); setAreas(a); setTopics(t); setAllQs(q);
+    const uc = await countUnseenQuestions(user.id, courseId);
+    setUnseenCount(uc);
+    setFetching(false);
+  }, [courseId, user]);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   if (loading || fetching) return <PageShell><Spinner className="mt-20" /></PageShell>;
   if (!course) return <PageShell><p className="text-center mt-20 text-gray-400">Materia non trovata.</p></PageShell>;
@@ -57,94 +94,163 @@ export default function QuizPage() {
   const toggleTopic = (id: string) => setSelTopics(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
   const availTopics = topics.filter(t => selAreas.includes(t.macro_area_id));
-  const pool = allQs.filter(q => selAreas.includes(q.macro_area_id) && (selTopics.length === 0 || selTopics.includes(q.topic_id)));
+  const pool = allQs.filter(q =>
+    selAreas.includes(q.macro_area_id) && (selTopics.length === 0 || selTopics.includes(q.topic_id))
+  );
   const maxQ = Math.min(pool.length, 50);
 
-  const startQuiz = () => {
-    if (!selAreas.length || !pool.length) return;
-    const picked = [...pool].sort(() => Math.random() - 0.5).slice(0, count);
+  const startQuiz = async () => {
+    if (!selAreas.length || !pool.length || !user) return;
+    let picked: Question[];
+    if (mode === 'unseen') {
+      const unseen = await getUnseenQuestions(user.id, courseId, {
+        macroAreaIds: selAreas,
+        topicIds: selTopics.length > 0 ? selTopics : undefined,
+      });
+      picked = [...unseen].sort(() => Math.random() - 0.5).slice(0, count);
+    } else {
+      picked = [...pool].sort(() => Math.random() - 0.5).slice(0, count);
+    }
+    if (!picked.length) return;
     setQuizQs(picked); setCur(0); setSel([]); setAnswered(false); setLog([]); setPhase('quiz');
   };
 
-  // ── Setup phase ──
-  if (phase === 'setup') return (
-    <PageShell courseName={course.name}>
-      <div className="max-w-xl mx-auto px-4 space-y-4">
-        <div className="flex items-center gap-3 mb-5">
-          <button onClick={() => router.push(`/course/${courseId}`)} className="p-2 rounded-xl hover:bg-gray-200 transition-colors">
-            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-          </button>
-          <h2 className="text-xl font-bold text-[rgb(32,44,71)]">Configura esercitazione</h2>
-        </div>
+  // ── SETUP PHASE ──────────────────────────────────────────────────────────────
+  if (phase === 'setup') {
+    const stepN = (n: number) => availTopics.length > 0 ? String(n) : String(n - 1);
+    const unseenInPool = mode === 'unseen' && unseenCount
+      ? `${unseenCount.unseen} non viste su ${unseenCount.total} totali`
+      : null;
 
-        <Card>
-          <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">1 · Scegli le macro-aree</h3>
-          <div className="space-y-2">
-            {areas.map(a => {
-              const n = allQs.filter(q => q.macro_area_id === a.id).length;
-              const on = selAreas.includes(a.id);
-              return (
-                <button key={a.id} onClick={() => toggleArea(a.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${on ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
-                  <span className={`font-medium text-sm ${on ? 'text-[rgb(32,44,71)]' : 'text-gray-700'}`}>{a.name}</span>
-                  <div className="flex items-center gap-2"><span className="text-xs text-gray-400">{n} domande</span><Checkbox checked={on} /></div>
-                </button>
-              );
-            })}
+    return (
+      <PageShell courseName={course.name}>
+        <div className="max-w-xl mx-auto px-4 space-y-4">
+          <div className="flex items-center gap-3 mb-5">
+            <button onClick={() => router.push(`/course/${courseId}`)} className="p-2 rounded-xl hover:bg-gray-200 transition-colors">
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <h2 className="text-xl font-bold text-[rgb(32,44,71)]">Configura esercitazione</h2>
           </div>
-        </Card>
 
-        {availTopics.length > 0 && (
+          {/* Mode selector */}
           <Card>
-            <h3 className="font-semibold text-[rgb(32,44,71)] mb-1 text-sm">2 · Filtra per argomento <span className="font-normal text-gray-400">(opzionale)</span></h3>
-            <p className="text-xs text-gray-400 mb-3">Se non selezioni nulla vengono inclusi tutti.</p>
-            <div className="space-y-1.5">
-              {availTopics.map(t => {
-                const n = allQs.filter(q => q.topic_id === t.id).length;
-                const on = selTopics.includes(t.id);
+            <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">1 · Modalità</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setMode('all')}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'all' ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
+                <div className="font-semibold text-sm text-[rgb(32,44,71)]">📚 Tutte le domande</div>
+                <div className="text-xs text-gray-400 mt-0.5">Pescate casualmente dal pool</div>
+              </button>
+              <button onClick={() => setMode('unseen')}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'unseen' ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
+                <div className="font-semibold text-sm text-[rgb(32,44,71)]">✨ Solo non viste</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {unseenCount ? `${unseenCount.unseen} domande disponibili` : 'Solo domande nuove'}
+                </div>
+              </button>
+            </div>
+
+            {/* Unseen progress bar */}
+            {unseenCount && unseenCount.total > 0 && (
+              <div className="mt-4">
+                <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+                  <span>Progresso domande</span>
+                  <span className="font-semibold text-[rgb(32,44,71)]">
+                    {unseenCount.total - unseenCount.unseen}/{unseenCount.total} viste
+                  </span>
+                </div>
+                <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-[rgb(32,44,71)] to-[rgb(99,130,201)]"
+                    style={{ width: `${Math.round(((unseenCount.total - unseenCount.unseen) / unseenCount.total) * 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-gray-400">{unseenCount.unseen} da vedere</span>
+                  <span className="text-emerald-600 font-medium">
+                    {Math.round(((unseenCount.total - unseenCount.unseen) / unseenCount.total) * 100)}% completato
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {mode === 'unseen' && unseenCount?.unseen === 0 && (
+              <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 font-medium text-center">
+                🎉 Hai visto tutte le domande disponibili! Passa alla modalità "Tutte" per ripassare.
+              </div>
+            )}
+          </Card>
+
+          {/* Areas */}
+          <Card>
+            <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">2 · Scegli le macro-aree</h3>
+            <div className="space-y-2">
+              {areas.map(a => {
+                const n = allQs.filter(q => q.macro_area_id === a.id).length;
+                const on = selAreas.includes(a.id);
                 return (
-                  <button key={t.id} onClick={() => toggleTopic(t.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all text-left ${on ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
-                    <span className={`text-sm ${on ? 'font-medium text-[rgb(32,44,71)]' : 'text-gray-600'}`}>{t.name}</span>
-                    <div className="flex items-center gap-2"><span className="text-xs text-gray-400">{n}</span><Checkbox checked={on} small /></div>
+                  <button key={a.id} onClick={() => toggleArea(a.id)}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${on ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+                    <span className={`font-medium text-sm ${on ? 'text-[rgb(32,44,71)]' : 'text-gray-700'}`}>{a.name}</span>
+                    <div className="flex items-center gap-2"><span className="text-xs text-gray-400">{n} domande</span><Checkbox checked={on} /></div>
                   </button>
                 );
               })}
             </div>
           </Card>
-        )}
 
-        <Card>
-          <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">{availTopics.length > 0 ? '3' : '2'} · Numero di domande: <span className="text-[rgb(99,130,201)]">{Math.min(count, maxQ || 5)}</span></h3>
-          <input type="range" min={5} max={maxQ || 5} value={Math.min(count, maxQ || 5)} onChange={e => setCount(+e.target.value)} className="w-full accent-[rgb(32,44,71)]" />
-          <div className="flex justify-between text-xs text-gray-400 mt-1"><span>5</span><span>Disponibili: {pool.length}</span><span>{maxQ || 5}</span></div>
-        </Card>
+          {/* Topics */}
+          {availTopics.length > 0 && (
+            <Card>
+              <h3 className="font-semibold text-[rgb(32,44,71)] mb-1 text-sm">3 · Filtra per argomento <span className="font-normal text-gray-400">(opzionale)</span></h3>
+              <p className="text-xs text-gray-400 mb-3">Se non selezioni nulla vengono inclusi tutti.</p>
+              <div className="space-y-1.5">
+                {availTopics.map(t => {
+                  const n = allQs.filter(q => q.topic_id === t.id).length;
+                  const on = selTopics.includes(t.id);
+                  return (
+                    <button key={t.id} onClick={() => toggleTopic(t.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all text-left ${on ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+                      <span className={`text-sm ${on ? 'font-medium text-[rgb(32,44,71)]' : 'text-gray-600'}`}>{t.name}</span>
+                      <div className="flex items-center gap-2"><span className="text-xs text-gray-400">{n}</span><Checkbox checked={on} small /></div>
+                    </button>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
 
-        <button onClick={startQuiz} disabled={!selAreas.length || !pool.length} className="btn-primary w-full py-3 text-base disabled:opacity-40">
-          Inizia esercitazione →
-        </button>
-      </div>
-    </PageShell>
-  );
+          {/* Count */}
+          <Card>
+            <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">
+              {availTopics.length > 0 ? '4' : '3'} · Numero di domande:
+              <span className="text-[rgb(99,130,201)] ml-1">{Math.min(count, maxQ || 5)}</span>
+            </h3>
+            <input type="range" min={5} max={maxQ || 5} value={Math.min(count, maxQ || 5)}
+              onChange={e => setCount(+e.target.value)} className="w-full accent-[rgb(32,44,71)]" />
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>5</span>
+              <span>Disponibili: {mode === 'unseen' ? (unseenCount?.unseen ?? pool.length) : pool.length}</span>
+              <span>{maxQ || 5}</span>
+            </div>
+          </Card>
 
-  // ── Quiz phase ──
+          <button onClick={startQuiz}
+            disabled={!selAreas.length || !pool.length || (mode === 'unseen' && unseenCount?.unseen === 0)}
+            className="btn-primary w-full py-3 text-base disabled:opacity-40">
+            Inizia esercitazione →
+          </button>
+        </div>
+      </PageShell>
+    );
+  }
+
+  // ── QUIZ PHASE ───────────────────────────────────────────────────────────────
   if (phase === 'quiz') {
-    const rawQ = quizQs[cur];
-    const allowMultiple = course.exam_rules.allow_multiple_correct;
-
-    // Shuffle options once per question (lazily, stored on the object)
-    if (!(rawQ as any)._shuffled) {
-      const idxs = rawQ.options.map((_: unknown, i: number) => i);
-      for (let i = idxs.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
-      }
-      (rawQ as any)._sopts = idxs.map((i: number) => rawQ.options[i]);
-      (rawQ as any)._scorrect = rawQ.correct_answers.map((o: number) => idxs.indexOf(o));
-      (rawQ as any)._shuffled = true;
-    }
+    const rawQ = prepareQuestion(quizQs[cur]);
     const displayOpts: string[] = (rawQ as any)._sopts;
     const shuffledCorrect: number[] = (rawQ as any)._scorrect;
+    const allowMultiple = course.exam_rules.allow_multiple_correct;
 
     const pick = (idx: number) => {
       if (answered) return;
@@ -156,18 +262,24 @@ export default function QuizPage() {
       }
     };
 
-    const confirmMultiple = () => { if (sel.length > 0) setAnswered(true); };
-
     const isCorrect = () =>
       sel.length === shuffledCorrect.length && sel.every(i => shuffledCorrect.includes(i));
 
-    const next = () => {
+    const next = async () => {
       const c = isCorrect();
       const entry = { question: rawQ, correct: c };
       const newLog = [...log, entry];
       setLog(newLog);
+
       if (cur === quizQs.length - 1) {
-        if (user) recordQuizAnswers(user.id, courseId, newLog);
+        // End of quiz — save stats and mark as seen
+        if (user) {
+          await recordQuizAnswers(user.id, courseId, newLog);
+          await markQuestionsSeen(user.id, courseId, quizQs.map(q => q.id));
+          // refresh unseen count
+          const uc = await countUnseenQuestions(user.id, courseId);
+          setUnseenCount(uc);
+        }
         setPhase('results');
       } else {
         setCur(x => x + 1); setSel([]); setAnswered(false);
@@ -208,9 +320,11 @@ export default function QuizPage() {
               );
             })}
           </div>
+
           {allowMultiple && !answered && sel.length > 0 && (
-            <button onClick={confirmMultiple} className="btn-primary w-full">Conferma risposta</button>
+            <button onClick={() => setAnswered(true)} className="btn-primary w-full">Conferma risposta</button>
           )}
+
           {answered && (
             <>
               <div className={`p-3.5 rounded-xl text-sm font-medium border ${isCorrect() ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
@@ -218,13 +332,14 @@ export default function QuizPage() {
                 {rawQ.explanation && <p className="mt-1 text-xs opacity-80">{rawQ.explanation}</p>}
               </div>
               <div className="flex gap-2">
-                <button onClick={next} className="btn-primary flex-1">{cur === quizQs.length - 1 ? 'Vedi risultati' : 'Prossima →'}</button>
-                <button
-                  onClick={() => { setShowReport(true); setReportNote(''); setReportSent(false); }}
-                  title="Segnala un problema con questa domanda"
+                <button onClick={next} className="btn-primary flex-1">
+                  {cur === quizQs.length - 1 ? 'Vedi risultati' : 'Prossima →'}
+                </button>
+                <button onClick={() => { setShowReport(true); setReportNote(''); setReportSent(false); }}
+                  title="Segnala un problema"
                   className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border-2 border-amber-200 bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors flex-shrink-0">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                   </svg>
                   Segnala
                 </button>
@@ -238,7 +353,7 @@ export default function QuizPage() {
                 <div className="text-center py-4">
                   <div className="text-4xl mb-3">✅</div>
                   <h3 className="font-semibold text-[rgb(32,44,71)] mb-2">Segnalazione inviata!</h3>
-                  <p className="text-gray-500 text-sm mb-4">Grazie per il tuo contributo. Gli amministratori verificheranno la domanda.</p>
+                  <p className="text-gray-500 text-sm mb-4">Grazie. Gli amministratori verificheranno la domanda.</p>
                   <button onClick={() => setShowReport(false)} className="btn-primary px-8">Chiudi</button>
                 </div>
               ) : (
@@ -249,34 +364,25 @@ export default function QuizPage() {
                   </div>
                   <div className="text-xs text-gray-500 space-y-1">
                     <p><span className="font-medium">Risposta selezionata:</span> {sel.length > 0 ? displayOpts[sel[0]] : 'Nessuna'}</p>
-                    <p><span className="font-medium">Risposta indicata come corretta:</span> {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</p>
+                    <p><span className="font-medium">Risposta indicata corretta:</span> {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Note aggiuntive <span className="text-gray-400 font-normal">(opzionale)</span></label>
-                    <textarea
-                      value={reportNote}
-                      onChange={e => setReportNote(e.target.value)}
-                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] resize-none"
-                      rows={3}
-                      placeholder="Es. La risposta corretta dovrebbe essere B perché..."
-                    />
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Note <span className="text-gray-400 font-normal">(opzionale)</span></label>
+                    <textarea value={reportNote} onChange={e => setReportNote(e.target.value)}
+                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] resize-none" rows={3}
+                      placeholder="Es. La risposta corretta dovrebbe essere B perché…"/>
                   </div>
-                  <button
-                    onClick={async () => {
-                      if (!user) return;
-                      await submitReport({
-                        question_id: rawQ.id,
-                        user_id: user.id,
-                        question_text: rawQ.question_text,
-                        selected_answer: sel.length > 0 ? displayOpts[sel[0]] : 'Nessuna',
-                        correct_answer: shuffledCorrect.map(i => displayOpts[i]).join(', '),
-                        note: reportNote,
-                      });
-                      setReportSent(true);
-                    }}
-                    className="btn-primary w-full">
-                    Invia segnalazione
-                  </button>
+                  <button onClick={async () => {
+                    if (!user) return;
+                    await submitReport({
+                      question_id: rawQ.id, user_id: user.id,
+                      question_text: rawQ.question_text,
+                      selected_answer: sel.length > 0 ? displayOpts[sel[0]] : 'Nessuna',
+                      correct_answer: shuffledCorrect.map(i => displayOpts[i]).join(', '),
+                      note: reportNote,
+                    });
+                    setReportSent(true);
+                  }} className="btn-primary w-full">Invia segnalazione</button>
                 </div>
               )}
             </Modal>
@@ -286,7 +392,7 @@ export default function QuizPage() {
     );
   }
 
-  // ── Results phase ──
+  // ── RESULTS PHASE ─────────────────────────────────────────────────────────────
   const correct = log.filter(l => l.correct).length;
   const pct = Math.round((correct / quizQs.length) * 100);
   return (
@@ -303,6 +409,11 @@ export default function QuizPage() {
             <div className="p-3 bg-emerald-50 rounded-xl"><div className="text-2xl font-bold text-emerald-600">{correct}</div><div className="text-xs text-emerald-600 mt-0.5">Corrette</div></div>
             <div className="p-3 bg-red-50 rounded-xl"><div className="text-2xl font-bold text-red-500">{quizQs.length - correct}</div><div className="text-xs text-red-500 mt-0.5">Errate</div></div>
           </div>
+          {unseenCount && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-xl text-sm text-blue-700">
+              <span className="font-semibold">{unseenCount.unseen}</span> domande ancora da vedere su {unseenCount.total} totali
+            </div>
+          )}
           <div className="flex gap-3 mt-5">
             <button onClick={() => setPhase('setup')} className="btn-secondary flex-1 text-sm">Altra sessione</button>
             <button onClick={() => router.push(`/course/${courseId}`)} className="btn-primary flex-1 text-sm">Dashboard</button>
