@@ -1,24 +1,23 @@
 // ─── Database row types (mirror Supabase tables) ─────────────────────────────
 
 export interface Profile {
-  id: string;           // uuid, matches auth.users.id
+  id: string;
   email: string;
   display_name: string;
   is_admin: boolean;
-  is_active: boolean;   // false until admin approves or email confirmed
+  is_active: boolean;
   created_at: string;
 }
 
 export interface Course {
-  id: string;           // uuid
+  id: string;
   name: string;
   subtitle: string;
-  icon: string;         // emoji
-  accent_color: string; // tailwind class e.g. "bg-blue-600"
+  icon: string;
+  accent_color: string;
   text_color: string;
   border_color: string;
   is_available: boolean;
-  // Exam rules stored as JSON column
   exam_rules: ExamRules;
   created_at: string;
   updated_at: string;
@@ -30,21 +29,29 @@ export interface ExamRules {
   correct_score: number;
   wrong_penalty: number;
   omitted_score: number;
-  options_per_question: number;   // 4 or 5
+  options_per_question: number;
   allow_multiple_correct: boolean;
-  distribution: Record<string, number>; // macro_area_id -> count
+  distribution: Record<string, number>;
+  // Two-phase exam support (e.g. Microbiologia)
+  exam_type?: 'standard' | 'two_phase';
+  preselection?: {
+    questions: number;           // how many preselection questions
+    max_errors: number;          // max errors allowed to pass
+    time_limit_seconds: number;  // time for preselection phase
+    distribution: Record<string, number>; // macro_area_id -> count
+  };
 }
 
 export interface MacroArea {
-  id: string;           // uuid
+  id: string;
   course_id: string;
-  name: string;         // e.g. "Igiene e Sanità Pubblica"
+  name: string;
   display_order: number;
   created_at: string;
 }
 
 export interface Topic {
-  id: string;           // uuid
+  id: string;
   macro_area_id: string;
   course_id: string;
   name: string;
@@ -52,15 +59,16 @@ export interface Topic {
 }
 
 export interface Question {
-  id: string;           // uuid
+  id: string;
   course_id: string;
   macro_area_id: string;
   topic_id: string;
   question_text: string;
-  options: string[];    // JSON array, 4 or 5 items
-  correct_answers: number[]; // 0-based indices (array supports multiple correct)
+  options: string[];
+  correct_answers: number[];
   explanation?: string;
   is_active: boolean;
+  shuffle_options: boolean;  // NEW: whether to shuffle options for this question
   created_at: string;
   updated_at: string;
   // Joined fields (not in DB)
@@ -81,6 +89,15 @@ export interface UserStats {
   updated_at: string;
 }
 
+// Tracks which specific questions a user has seen
+export interface UserQuestionSeen {
+  id: string;
+  user_id: string;
+  course_id: string;
+  question_id: string;
+  seen_at: string;
+}
+
 export interface ExamResult {
   id: string;
   user_id: string;
@@ -98,7 +115,7 @@ export interface ExamResult {
 
 export interface ExamAnswer {
   question_id: string;
-  selected: number[];   // selected option indices
+  selected: number[];
   correct: boolean;
 }
 
