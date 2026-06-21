@@ -446,6 +446,30 @@ function CourseModal({ initial, onClose, onSave }: {
             <input type="checkbox" id="multi" checked={rule.allow_multiple_correct} onChange={e => setRule({ allow_multiple_correct: e.target.checked })} className="accent-[rgb(32,44,71)]" />
             <label htmlFor="multi" className="text-sm text-gray-600 cursor-pointer">Ammetti risposte multiple corrette</label>
           </div>
+          <div className="flex items-center gap-2 mt-2">
+            <input type="checkbox" id="twophase" checked={rule.exam_type === 'two_phase'} onChange={e => setRule({ exam_type: e.target.checked ? 'two_phase' : 'standard' })} className="accent-[rgb(32,44,71)]" />
+            <label htmlFor="twophase" className="text-sm text-gray-600 cursor-pointer">Esame bifasico (preselezione + esame)</label>
+          </div>
+
+          {rule.exam_type === 'two_phase' && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+              <p className="text-xs font-semibold text-amber-800">⚙️ Configura la fase di preselezione</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input label="Domande preselezione" type="number" min={1}
+                  value={rule.preselection?.questions ?? 15}
+                  onChange={e => setRule({ preselection: { ...rule.preselection!, questions: +e.target.value, max_errors: rule.preselection?.max_errors ?? 1, time_limit_seconds: rule.preselection?.time_limit_seconds ?? 1200, distribution: rule.preselection?.distribution ?? {} } })} />
+                <Input label="Errori massimi ammessi" type="number" min={0}
+                  value={rule.preselection?.max_errors ?? 1}
+                  onChange={e => setRule({ preselection: { ...rule.preselection!, max_errors: +e.target.value, questions: rule.preselection?.questions ?? 15, time_limit_seconds: rule.preselection?.time_limit_seconds ?? 1200, distribution: rule.preselection?.distribution ?? {} } })} />
+                <Input label="Tempo preselezione (min)" type="number" min={1}
+                  value={(rule.preselection?.time_limit_seconds ?? 1200) / 60}
+                  onChange={e => setRule({ preselection: { ...rule.preselection!, time_limit_seconds: +e.target.value * 60, questions: rule.preselection?.questions ?? 15, max_errors: rule.preselection?.max_errors ?? 1, distribution: rule.preselection?.distribution ?? {} } })} />
+              </div>
+              <p className="text-xs text-amber-700">
+                La distribuzione delle domande di preselezione si configura come per l'esame principale qui sopra, nella sezione "Domande per area".
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Distribution per macro area */}
@@ -580,11 +604,12 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         'Studio trasversale',
         'B',
         'Lo studio caso-controllo è ideale per malattie rare perché parte dai casi già esistenti',
+        'true',
       ],
       [
         areas[0]?.name ?? 'Igiene e Sanità Pubblica',
         allTopics[0]?.name ?? 'Epidemiologia',
-        'Esempio con 4 opzioni (lascia option_e vuoto)',
+        'Esempio con 4 opzioni e opzioni NON mescolate',
         'Opzione A',
         'Opzione B',
         'Opzione C',
@@ -592,6 +617,7 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         '',
         'A',
         '',
+        'false',
       ],
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
@@ -662,6 +688,8 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         return;
       }
 
+      const shuffleVal = String(row['shuffle_options'] ?? '').trim().toLowerCase();
+      const shouldShuffle = shuffleVal === '' || shuffleVal === 'true' || shuffleVal === 'si' || shuffleVal === 'sì' || shuffleVal === '1' || shuffleVal === 'yes';
       toInsert.push({
         course_id: selectedCourse,
         macro_area_id: area.id,
@@ -671,6 +699,7 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         correct_answers: correctIdxs,
         explanation: String(row['explanation'] ?? '').trim() || undefined,
         is_active: true,
+        shuffle_options: shouldShuffle,
       });
     });
 
@@ -947,6 +976,7 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
   const [corrects, setCorrects] = useState<number[]>(initial.correct_answers ?? []);
   const [explanation, setExplanation] = useState(initial.explanation ?? '');
   const [active, setActive] = useState(initial.is_active !== false);
+  const [shuffleOpts, setShuffleOpts] = useState(initial.shuffle_options !== false);
 
   const filteredTopics = topics.filter(t => t.macro_area_id === areaId);
 
@@ -966,6 +996,7 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
       correct_answers: corrects,
       explanation: explanation || undefined,
       is_active: active,
+      shuffle_options: shuffleOpts,
     });
   };
 
@@ -1010,6 +1041,10 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
         <div className="flex items-center gap-2">
           <input type="checkbox" id="qactive" checked={active} onChange={e => setActive(e.target.checked)} className="accent-[rgb(32,44,71)]" />
           <label htmlFor="qactive" className="text-sm text-gray-600 cursor-pointer">Domanda attiva (visibile negli esercizi)</label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="qshuffle" checked={shuffleOpts} onChange={e => setShuffleOpts(e.target.checked)} className="accent-[rgb(32,44,71)]" />
+          <label htmlFor="qshuffle" className="text-sm text-gray-600 cursor-pointer">Mescola le opzioni di risposta</label>
         </div>
 
         <button onClick={handleSave} className="btn-primary w-full">Salva domanda</button>
