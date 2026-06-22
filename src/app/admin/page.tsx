@@ -362,17 +362,23 @@ function CourseModal({ initial, onClose, onSave }: {
   const [courseAreas, setCourseAreas] = useState<MacroArea[]>([]);
   // distribution: areaId -> count (local state for the form)
   const [distribution, setDistribution] = useState<Record<string, number>>(initial.exam_rules?.distribution ?? {});
+  const [preDistribution, setPreDistribution] = useState<Record<string, number>>(initial.exam_rules?.preselection?.distribution ?? {});
 
   // Load existing macro areas if editing
   useEffect(() => {
     if (initial.id) {
       getMacroAreas(initial.id).then(areas => {
         setCourseAreas(areas);
-        // Init distribution counts from existing rules
         const dist = initial.exam_rules?.distribution ?? {};
-        const init: Record<string, number> = {};
-        areas.forEach(a => { init[a.id] = dist[a.id] ?? 0; });
-        setDistribution(init);
+        const preDist = initial.exam_rules?.preselection?.distribution ?? {};
+        const initMain: Record<string, number> = {};
+        const initPre: Record<string, number> = {};
+        areas.forEach(a => {
+          initMain[a.id] = dist[a.id] ?? 0;
+          initPre[a.id] = preDist[a.id] ?? 0;
+        });
+        setDistribution(initMain);
+        setPreDistribution(initPre);
       });
     }
   }, [initial.id]);
@@ -385,11 +391,18 @@ function CourseModal({ initial, onClose, onSave }: {
 
   const handleSave = () => {
     if (!form.name) return;
-    // Merge distribution into exam_rules, recalculate total
+    const preTotal = Object.values(preDistribution).reduce((s,n) => s+n, 0);
     const finalRules = {
       ...form.exam_rules,
       distribution,
       total_questions: distTotal > 0 ? distTotal : form.exam_rules.total_questions,
+      ...(form.exam_rules.exam_type === 'two_phase' ? {
+        preselection: {
+          ...form.exam_rules.preselection!,
+          distribution: preDistribution,
+          questions: preTotal > 0 ? preTotal : (form.exam_rules.preselection?.questions ?? 15),
+        }
+      } : {}),
     };
     onSave({ ...form, exam_rules: finalRules });
   };
@@ -474,40 +487,76 @@ function CourseModal({ initial, onClose, onSave }: {
 
         {/* Distribution per macro area */}
         {courseAreas.length > 0 && (
-          <div className="border-t border-gray-100 pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-[rgb(32,44,71)]">📊 Domande per area nell'esame</p>
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${distTotal > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                Totale: {distTotal} domande
-              </span>
-            </div>
-            <div className="space-y-2">
-              {courseAreas.map(area => (
-                <div key={area.id} className="flex items-center gap-3 p-3 bg-[rgb(240,242,247)] rounded-xl">
-                  <span className="flex-1 text-sm font-medium text-gray-700 truncate">{area.name}</span>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button type="button"
-                      onClick={() => setDistribution(d => ({ ...d, [area.id]: Math.max(0, (d[area.id] ?? 0) - 1) }))}
-                      className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">−</button>
-                    <input
-                      type="number"
-                      min={0}
-                      value={distribution[area.id] ?? 0}
-                      onChange={e => setDistribution(d => ({ ...d, [area.id]: Math.max(0, +e.target.value) }))}
-                      className="w-14 text-center border border-gray-300 rounded-lg px-1 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"
-                    />
-                    <button type="button"
-                      onClick={() => setDistribution(d => ({ ...d, [area.id]: (d[area.id] ?? 0) + 1 }))}
-                      className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">+</button>
+          <div className="border-t border-gray-100 pt-4 space-y-4">
+
+            {/* Main exam distribution */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-[rgb(32,44,71)]">
+                  {rule.exam_type === 'two_phase' ? '📊 Domande per area — Esame vero' : "📊 Domande per area nell'esame"}
+                </p>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${distTotal > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                  Totale: {distTotal}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {courseAreas.map(area => (
+                  <div key={area.id} className="flex items-center gap-3 p-3 bg-[rgb(240,242,247)] rounded-xl">
+                    <span className="flex-1 text-sm font-medium text-gray-700 truncate">{area.name}</span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button type="button"
+                        onClick={() => setDistribution(d => ({ ...d, [area.id]: Math.max(0, (d[area.id] ?? 0) - 1) }))}
+                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">−</button>
+                      <input type="number" min={0} value={distribution[area.id] ?? 0}
+                        onChange={e => setDistribution(d => ({ ...d, [area.id]: Math.max(0, +e.target.value) }))}
+                        className="w-14 text-center border border-gray-300 rounded-lg px-1 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"/>
+                      <button type="button"
+                        onClick={() => setDistribution(d => ({ ...d, [area.id]: (d[area.id] ?? 0) + 1 }))}
+                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">+</button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              {distTotal > 0 && (
+                <p className="text-xs text-gray-400 mt-2">
+                  💡 Il totale domande dell'esame verrà impostato automaticamente a <strong>{distTotal}</strong>.
+                </p>
+              )}
             </div>
-            {distTotal > 0 && (
-              <p className="text-xs text-gray-400 mt-2">
-                💡 Il totale domande dell'esame verrà impostato automaticamente a <strong>{distTotal}</strong>.
-              </p>
+
+            {/* Preselection distribution — only for two-phase */}
+            {rule.exam_type === 'two_phase' && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-amber-800">⚡ Domande per area — Preselezione</p>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Object.values(preDistribution).reduce((s,n)=>s+n,0) > 0 ? 'bg-amber-200 text-amber-800' : 'bg-gray-100 text-gray-500'}`}>
+                    Totale: {Object.values(preDistribution).reduce((s,n)=>s+n,0)}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {courseAreas.map(area => (
+                    <div key={area.id} className="flex items-center gap-3 p-2.5 bg-white rounded-xl">
+                      <span className="flex-1 text-sm font-medium text-gray-700 truncate">{area.name}</span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button type="button"
+                          onClick={() => setPreDistribution(d => ({ ...d, [area.id]: Math.max(0, (d[area.id] ?? 0) - 1) }))}
+                          className="w-7 h-7 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 hover:bg-amber-200 font-bold text-base leading-none">−</button>
+                        <input type="number" min={0} value={preDistribution[area.id] ?? 0}
+                          onChange={e => setPreDistribution(d => ({ ...d, [area.id]: Math.max(0, +e.target.value) }))}
+                          className="w-14 text-center border border-amber-300 rounded-lg px-1 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"/>
+                        <button type="button"
+                          onClick={() => setPreDistribution(d => ({ ...d, [area.id]: (d[area.id] ?? 0) + 1 }))}
+                          className="w-7 h-7 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 hover:bg-amber-200 font-bold text-base leading-none">+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-amber-600 mt-2">
+                  Queste aree vengono usate per pescare le {rule.preselection?.questions ?? 15} domande della preselezione.
+                </p>
+              </div>
             )}
+
           </div>
         )}
 
