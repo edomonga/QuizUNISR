@@ -423,12 +423,16 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
   const [showReview, setShowReview] = useState(false);
   const startRef = useRef(Date.now());
 
-  // Load preselezione questions
+  // Load preselezione questions using preselection.distribution if set
   useEffect(() => {
-    const preDistribution = pre.distribution && Object.keys(pre.distribution).length > 0
+    // Use preselection-specific distribution if configured, else fall back to main
+    const preDistribution = (pre.distribution && Object.keys(pre.distribution).length > 0 && Object.values(pre.distribution).some(v => v > 0))
       ? pre.distribution
-      : rule.distribution; // fallback to main distribution proportionally
-    const fakeCourse = { ...course, exam_rules: { ...rule, total_questions: pre.questions, distribution: preDistribution } };
+      : rule.distribution;
+    const fakeCourse = {
+      ...course,
+      exam_rules: { ...rule, total_questions: pre.questions, distribution: preDistribution }
+    };
     pickExamQuestions(fakeCourse).then(rawQs => {
       const shuffled = rawQs.map(shuffleQuestion);
       setPreQs(shuffled);
