@@ -19,6 +19,7 @@ export interface Course {
   border_color: string;
   is_available: boolean;
   exam_rules: ExamRules;
+  year: number | null;   // ← NUOVO: anno di corso (1-6), null = non assegnato
   created_at: string;
   updated_at: string;
 }
@@ -32,6 +33,7 @@ export interface ExamRules {
   options_per_question: number;
   allow_multiple_correct: boolean;
   distribution: Record<string, number>;
+  // Two-phase exam support (e.g. Microbiologia)
   exam_type?: 'standard' | 'two_phase';
   preselection?: {
     questions: number;
@@ -70,6 +72,7 @@ export interface Question {
   shuffle_options: boolean;
   created_at: string;
   updated_at: string;
+  // Joined fields (not in DB)
   macro_area_name?: string;
   topic_name?: string;
 }
@@ -87,6 +90,7 @@ export interface UserStats {
   updated_at: string;
 }
 
+// Tracks which specific questions a user has seen
 export interface UserQuestionSeen {
   id: string;
   user_id: string;
@@ -129,5 +133,4 @@ export interface AuthUser {
   display_name: string;
   is_admin: boolean;
   is_active: boolean;
-  must_change_password: boolean; // ← NUOVO: flag password temporanea
 }
