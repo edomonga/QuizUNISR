@@ -26,6 +26,25 @@ export default function DashboardPage() {
   );
   if (!user) return null;
 
+  // ── Raggruppa per anno ──────────────────────────────────────────────────────
+  const grouped: Record<number, Course[]> = {};
+  const unassigned: Course[] = [];
+
+  courses.forEach(course => {
+    if (course.year != null) {
+      if (!grouped[course.year]) grouped[course.year] = [];
+      grouped[course.year].push(course);
+    } else {
+      unassigned.push(course);
+    }
+  });
+
+  const sortedYears = Object.keys(grouped)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  const hasAnyCourse = courses.length > 0;
+
   return (
     <PageShell>
       <div className="max-w-3xl mx-auto px-4">
@@ -46,7 +65,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {courses.length === 0 ? (
+        {!hasAnyCourse ? (
           <Card className="text-center py-12 text-gray-400">
             <div className="text-4xl mb-3">📚</div>
             <p className="font-medium">Nessuna materia disponibile al momento.</p>
@@ -57,10 +76,42 @@ export default function DashboardPage() {
             )}
           </Card>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {courses.map(course => (
-              <CourseCard key={course.id} course={course} />
+          <div className="space-y-8">
+            {/* Sezioni per anno */}
+            {sortedYears.map(year => (
+              <section key={year}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[rgb(32,44,71)] text-white text-sm font-bold flex-shrink-0">
+                    {year}
+                  </div>
+                  <h3 className="text-base font-semibold text-[rgb(32,44,71)]">Anno {year}</h3>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {grouped[year].map(course => (
+                    <CourseCard key={course.id} course={course} />
+                  ))}
+                </div>
+              </section>
             ))}
+
+            {/* Sezione «Altro» per materie senza anno */}
+            {unassigned.length > 0 && (
+              <section>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-300 text-gray-600 text-sm font-bold flex-shrink-0">
+                    •
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-500">Altro</h3>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {unassigned.map(course => (
+                    <CourseCard key={course.id} course={course} />
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </div>
