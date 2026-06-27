@@ -103,9 +103,29 @@ function UsersTab() {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await deleteProfile(id);
-    if (error) flash('err', error);
-    else { flash('ok', 'Utente disattivato.'); setConfirmDel(null); load(); }
+    try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession();
+      const token = session?.access_token ?? '';
+
+      const res = await fetch('/api/admin/deleteuser', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ userId: id }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Errore eliminazione.');
+
+      flash('ok', 'Utente eliminato definitivamente.');
+      setConfirmDel(null);
+      load();
+    } catch (e: any) {
+      flash('err', e.message);
+      setConfirmDel(null);
+    }
   };
 
   // ── NUOVO: apri modal reset password ──
