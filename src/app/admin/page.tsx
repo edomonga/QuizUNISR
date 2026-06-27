@@ -516,6 +516,7 @@ function CourseModal({ initial, onClose, onSave }: {
     border_color: initial.border_color ?? 'border-blue-200',
     is_available: initial.is_available ?? true,
     exam_rules: initial.exam_rules ?? DEFAULT_RULES,
+    year: initial.year ?? null,             // ← NUOVO: anno di corso
     ...(initial.id ? { id: initial.id } : {}),
   });
   const [courseAreas, setCourseAreas] = useState<MacroArea[]>([]);
@@ -584,7 +585,28 @@ function CourseModal({ initial, onClose, onSave }: {
           <Input label="Nome materia *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="es. Farmacologia" />
           <Input label="Icona (emoji)" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} placeholder="💊" />
         </div>
-        <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
+       <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
+
+        {/* Anno di corso */}
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Anno di corso</p>
+          <div className="flex flex-wrap gap-2">
+            {[null, 1, 2, 3, 4, 5, 6].map(y => (
+              <button
+                key={y ?? 'none'}
+                type="button"
+                onClick={() => setForm(f => ({ ...f, year: y }))}
+                className={`px-3 py-1.5 rounded-xl border-2 text-xs font-medium transition-all ${
+                  form.year === y
+                    ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white'
+                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                {y == null ? 'Nessuno' : `Anno ${y}`}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Color picker */}
         <div>
