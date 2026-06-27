@@ -18,8 +18,8 @@ export interface Course {
   text_color: string;
   border_color: string;
   is_available: boolean;
+  year: number | null;    // ← anno di corso (1-6), null = non assegnato
   exam_rules: ExamRules;
-  year: number | null;   // ← NUOVO: anno di corso (1-6), null = non assegnato
   created_at: string;
   updated_at: string;
 }
@@ -133,4 +133,5 @@ export interface AuthUser {
   display_name: string;
   is_admin: boolean;
   is_active: boolean;
+  must_change_password?: boolean;   // ← fix errore change-password/page.tsx
 }
