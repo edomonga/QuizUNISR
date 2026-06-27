@@ -609,6 +609,7 @@ function CourseModal({ initial, onClose, onSave }: {
         </div>
 
         {/* Color picker */}
+        
         <div>
           <p className="text-sm font-medium text-gray-700 mb-2">Colore tema</p>
           <div className="flex flex-wrap gap-2">
