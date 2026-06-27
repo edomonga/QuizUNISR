@@ -63,6 +63,12 @@ export default function AdminPage() {
   );
 }
 
+// ─── Helper: genera password temporanea ───────────────────────────────────────
+function generateTempPassword(): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
 // ─── USERS TAB ────────────────────────────────────────────────────────────────
 function UsersTab() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -70,13 +76,25 @@ function UsersTab() {
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
+  // ── NUOVO: stato barra di ricerca ──
+  const [search, setSearch] = useState('');
+
+  // ── NUOVO: stato reset password ──
+  const [resetModal, setResetModal] = useState<Profile | null>(null);
+  const [tempPassword, setTempPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+
   const load = useCallback(async () => {
     setProfiles(await getAllProfiles());
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const flash = (type: 'ok' | 'err', text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3500); };
+  const flash = (type: 'ok' | 'err', text: string) => {
+    setMsg({ type, text });
+    setTimeout(() => setMsg(null), 3500);
+  };
 
   const toggle = async (id: string, field: 'is_active' | 'is_admin', val: boolean) => {
     const { error } = await updateProfile(id, { [field]: val });
@@ -90,15 +108,71 @@ function UsersTab() {
     else { flash('ok', 'Utente disattivato.'); setConfirmDel(null); load(); }
   };
 
+  // ── NUOVO: apri modal reset password ──
+  const openReset = (p: Profile) => {
+    setTempPassword(generateTempPassword());
+    setResetDone(false);
+    setResetModal(p);
+  };
+
+  // ── NUOVO: chiama l'API route per impostare la password temporanea ──
+  const handleResetPassword = async () => {
+    if (!resetModal) return;
+    setResetLoading(true);
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: resetModal.id, newPassword: tempPassword }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Errore sconosciuto');
+      setResetDone(true);
+    } catch (e: any) {
+      flash('err', e.message);
+      setResetModal(null);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   if (loading) return <Spinner className="mt-10" />;
 
-  const pending = profiles.filter(p => !p.is_active);
-  const active = profiles.filter(p => p.is_active);
+  // ── NUOVO: filtraggio per ricerca ──
+  const q = search.toLowerCase();
+  const filterProfiles = (list: Profile[]) =>
+    list.filter(p =>
+      p.display_name?.toLowerCase().includes(q) ||
+      p.email?.toLowerCase().includes(q)
+    );
+
+  const pending = filterProfiles(profiles.filter(p => !p.is_active));
+  const active = filterProfiles(profiles.filter(p => p.is_active));
 
   return (
     <div className="space-y-4">
       {msg && <Alert type={msg.type} message={msg.text} />}
 
+      {/* ── NUOVO: Barra di ricerca utenti ── */}
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cerca per nome o email…"
+          className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] bg-white"
+        />
+        {search && (
+          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            ✕
+          </button>
+        )}
+      </div>
+
+      {/* Utenti in attesa */}
       {pending.length > 0 && (
         <Card className="border-2 border-amber-200">
           <h3 className="font-semibold text-amber-700 mb-3 text-sm">⏳ In attesa di attivazione ({pending.length})</h3>
@@ -119,9 +193,15 @@ function UsersTab() {
         </Card>
       )}
 
+      {/* Utenti attivi */}
       <Card>
-        <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm uppercase tracking-wide">Utenti attivi ({active.length})</h3>
+        <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm uppercase tracking-wide">
+          Utenti attivi ({active.length})
+        </h3>
         <div className="space-y-2">
+          {active.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-4">Nessun utente trovato.</p>
+          )}
           {active.map(p => (
             <div key={p.id} className="p-3 bg-[rgb(240,242,247)] rounded-xl">
               <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -133,6 +213,12 @@ function UsersTab() {
                   <div className="text-xs text-gray-400 mt-0.5">{p.email}</div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                  {/* ── NUOVO: Reset password ── */}
+                  <button
+                    onClick={() => openReset(p)}
+                    className="text-xs bg-white border border-blue-200 text-blue-600 font-medium px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                    🔑 Reset pwd
+                  </button>
                   <button
                     onClick={() => toggle(p.id, 'is_admin', !p.is_admin)}
                     className="text-xs bg-white border border-gray-200 text-gray-600 font-medium px-2.5 py-1 rounded-lg hover:bg-gray-50 transition-colors">
@@ -160,6 +246,59 @@ function UsersTab() {
           ))}
         </div>
       </Card>
+
+      {/* ── NUOVO: Modal reset password ── */}
+      {resetModal && (
+        <Modal title="Reset password" onClose={() => { setResetModal(null); setResetDone(false); }}>
+          {resetDone ? (
+            <div className="text-center py-4">
+              <div className="text-4xl mb-3">✅</div>
+              <p className="font-semibold text-[rgb(32,44,71)] mb-2">Password impostata!</p>
+              <p className="text-sm text-gray-500 mb-4">
+                Comunica questa password temporanea a <strong>{resetModal.display_name}</strong>.<br />
+                Al primo accesso dovrà cambiarla.
+              </p>
+              <div className="bg-gray-100 rounded-xl px-6 py-3 font-mono text-lg font-bold tracking-widest text-[rgb(32,44,71)] mb-6 select-all">
+                {tempPassword}
+              </div>
+              <button onClick={() => { setResetModal(null); setResetDone(false); }}
+                className="btn-primary px-8">
+                Chiudi
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-gray-600 mb-4">
+                Stai per impostare una password temporanea per <strong>{resetModal.display_name}</strong> ({resetModal.email}).
+              </p>
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+                <p className="text-xs text-gray-500 mb-1 font-medium uppercase tracking-wide">Password temporanea generata</p>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-lg font-bold text-[rgb(32,44,71)] tracking-widest">{tempPassword}</span>
+                  <button
+                    onClick={() => setTempPassword(generateTempPassword())}
+                    className="text-xs text-blue-500 hover:text-blue-700 underline">
+                    Rigenera
+                  </button>
+                </div>
+              </div>
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5">
+                ⚠️ L&apos;utente dovrà cambiare questa password al primo accesso. Comunicagliela privatamente.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setResetModal(null)}
+                  className="flex-1 py-2.5 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors">
+                  Annulla
+                </button>
+                <button onClick={handleResetPassword} disabled={resetLoading}
+                  className="flex-1 btn-primary py-2.5 text-sm">
+                  {resetLoading ? 'Salvataggio…' : 'Imposta password'}
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
