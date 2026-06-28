@@ -3,8 +3,8 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 
 export const metadata: Metadata = {
-  title: 'UniQuiz – Preparazione Esami',
-  description: 'Piattaforma di preparazione esami per studenti UniSR',
+  title: 'UniQuiz',
+  description: 'Piattaforma di preparazione esami',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
