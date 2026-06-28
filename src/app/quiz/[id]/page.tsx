@@ -307,7 +307,7 @@ export default function QuizPage() {
     const handleMastered = async () => {
       if (!user) return;
       await markQuestionMastered(user.id, rawQ.id);
-      setMasteredThisSession(prev => new Set([...prev, rawQ.id]));
+      setMasteredThisSession(prev => new Set(Array.from(prev).concat(rawQ.id)));
       setWrongCount(c => Math.max(0, c - 1));
     };
 
