@@ -1,4 +1,5 @@
 'use client';
+// Dipendenze: xlsx (già installato), jspdf (npm install jspdf)
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -75,11 +76,7 @@ function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-
-  // ── NUOVO: stato barra di ricerca ──
   const [search, setSearch] = useState('');
-
-  // ── NUOVO: stato reset password ──
   const [resetModal, setResetModal] = useState<Profile | null>(null);
   const [tempPassword, setTempPassword] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
@@ -128,14 +125,12 @@ function UsersTab() {
     }
   };
 
-  // ── NUOVO: apri modal reset password ──
   const openReset = (p: Profile) => {
     setTempPassword(generateTempPassword());
     setResetDone(false);
     setResetModal(p);
   };
 
-  // ── NUOVO: chiama l'API route per impostare la password temporanea ──
   const handleResetPassword = async () => {
     if (!resetModal) return;
     setResetLoading(true);
@@ -158,7 +153,6 @@ function UsersTab() {
 
   if (loading) return <Spinner className="mt-10" />;
 
-  // ── NUOVO: filtraggio per ricerca ──
   const q = search.toLowerCase();
   const filterProfiles = (list: Profile[]) =>
     list.filter(p =>
@@ -173,7 +167,6 @@ function UsersTab() {
     <div className="space-y-4">
       {msg && <Alert type={msg.type} message={msg.text} />}
 
-      {/* ── NUOVO: Barra di ricerca utenti ── */}
       <div className="relative">
         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -192,7 +185,6 @@ function UsersTab() {
         )}
       </div>
 
-      {/* Utenti in attesa */}
       {pending.length > 0 && (
         <Card className="border-2 border-amber-200">
           <h3 className="font-semibold text-amber-700 mb-3 text-sm">⏳ In attesa di attivazione ({pending.length})</h3>
@@ -213,7 +205,6 @@ function UsersTab() {
         </Card>
       )}
 
-      {/* Utenti attivi */}
       <Card>
         <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm uppercase tracking-wide">
           Utenti attivi ({active.length})
@@ -233,7 +224,6 @@ function UsersTab() {
                   <div className="text-xs text-gray-400 mt-0.5">{p.email}</div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* ── NUOVO: Reset password ── */}
                   <button
                     onClick={() => openReset(p)}
                     className="text-xs bg-white border border-blue-200 text-blue-600 font-medium px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors">
@@ -267,7 +257,6 @@ function UsersTab() {
         </div>
       </Card>
 
-      {/* ── NUOVO: Modal reset password ── */}
       {resetModal && (
         <Modal title="Reset password" onClose={() => { setResetModal(null); setResetDone(false); }}>
           {resetDone ? (
@@ -369,7 +358,15 @@ function CoursesTab() {
             <div className="flex items-center gap-3">
               <span className="text-2xl">{course.icon}</span>
               <div>
-                <h3 className="font-bold text-[rgb(32,44,71)]">{course.name}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-[rgb(32,44,71)]">{course.name}</h3>
+                  {/* ── NUOVO: badge anno di corso ── */}
+                  {course.year != null && (
+                    <span className="text-xs font-semibold bg-[rgb(32,44,71)] text-white px-2 py-0.5 rounded-full">
+                      Anno {course.year}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-400">{course.subtitle}</p>
               </div>
             </div>
@@ -520,11 +517,9 @@ function CourseModal({ initial, onClose, onSave }: {
     ...(initial.id ? { id: initial.id } : {}),
   });
   const [courseAreas, setCourseAreas] = useState<MacroArea[]>([]);
-  // distribution: areaId -> count (local state for the form)
   const [distribution, setDistribution] = useState<Record<string, number>>(initial.exam_rules?.distribution ?? {});
   const [preDistribution, setPreDistribution] = useState<Record<string, number>>(initial.exam_rules?.preselection?.distribution ?? {});
 
-  // Load existing macro areas if editing
   useEffect(() => {
     if (initial.id) {
       getMacroAreas(initial.id).then(areas => {
@@ -546,7 +541,6 @@ function CourseModal({ initial, onClose, onSave }: {
   const rule = form.exam_rules;
   const setRule = (patch: Partial<ExamRules>) => setForm(f => ({ ...f, exam_rules: { ...f.exam_rules, ...patch } }));
 
-  // Auto-calculate total from distribution
   const distTotal = Object.values(distribution).reduce((s, n) => s + n, 0);
 
   const handleSave = () => {
@@ -585,13 +579,13 @@ function CourseModal({ initial, onClose, onSave }: {
           <Input label="Nome materia *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="es. Farmacologia" />
           <Input label="Icona (emoji)" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} placeholder="💊" />
         </div>
-       <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
+        <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
 
-        {/* Anno di corso */}
+        {/* ── NUOVO: Anno di corso ── */}
         <div>
           <p className="text-sm font-medium text-gray-700 mb-2">Anno di corso</p>
           <div className="flex flex-wrap gap-2">
-            {[null, 1, 2, 3, 4, 5, 6].map(y => (
+            {([null, 1, 2, 3, 4, 5, 6] as (number | null)[]).map(y => (
               <button
                 key={y ?? 'none'}
                 type="button"
@@ -609,7 +603,6 @@ function CourseModal({ initial, onClose, onSave }: {
         </div>
 
         {/* Color picker */}
-        
         <div>
           <p className="text-sm font-medium text-gray-700 mb-2">Colore tema</p>
           <div className="flex flex-wrap gap-2">
@@ -661,7 +654,7 @@ function CourseModal({ initial, onClose, onSave }: {
                   onChange={e => setRule({ preselection: { ...rule.preselection!, time_limit_seconds: +e.target.value * 60, questions: rule.preselection?.questions ?? 15, max_errors: rule.preselection?.max_errors ?? 1, distribution: rule.preselection?.distribution ?? {} } })} />
               </div>
               <p className="text-xs text-amber-700">
-                La distribuzione delle domande di preselezione si configura come per l'esame principale qui sopra, nella sezione "Domande per area".
+                La distribuzione delle domande di preselezione si configura come per l&apos;esame principale qui sopra, nella sezione &quot;Domande per area&quot;.
               </p>
             </div>
           )}
@@ -701,7 +694,7 @@ function CourseModal({ initial, onClose, onSave }: {
               </div>
               {distTotal > 0 && (
                 <p className="text-xs text-gray-400 mt-2">
-                  💡 Il totale domande dell'esame verrà impostato automaticamente a <strong>{distTotal}</strong>.
+                  💡 Il totale domande dell&apos;esame verrà impostato automaticamente a <strong>{distTotal}</strong>.
                 </p>
               )}
             </div>
@@ -762,14 +755,11 @@ function CourseModal({ initial, onClose, onSave }: {
 
 // ─── QUESTIONS TAB ────────────────────────────────────────────────────────────
 
-// Parses a "correct" cell like "A", "B,D", "1", "2,4" → 0-based indices
 function parseCorrect(val: unknown, optCount: number): number[] {
   if (val === null || val === undefined || String(val).trim() === '') return [];
   const str = String(val).trim().toUpperCase();
   return str.split(/[,;]/).map(s => s.trim()).reduce<number[]>((acc, token) => {
-    // Letter: A→0, B→1 …
     if (/^[A-Z]$/.test(token)) { const idx = token.charCodeAt(0) - 65; if (idx < optCount) acc.push(idx); }
-    // Number: 1→0, 2→1 …
     else if (/^\d+$/.test(token)) { const idx = parseInt(token, 10) - 1; if (idx >= 0 && idx < optCount) acc.push(idx); }
     return acc;
   }, []);
@@ -790,10 +780,11 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
   const [filterTopic, setFilterTopic] = useState('');
   const [searchText, setSearchText] = useState('');
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [showDownload, setShowDownload] = useState(false);
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
 
   useEffect(() => { getCourses().then(setCourses); }, []);
 
-  // Jump to a specific question from Reports tab
   useEffect(() => {
     if (jumpToText) {
       setSearchText(jumpToText);
@@ -818,10 +809,8 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
   );
   const visibleTopics = allTopics.filter(t => !filterArea || t.macro_area_id === filterArea);
 
-  // ── Download template ──
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx');
-    // Build example rows based on current areas/topics
     const rows = [
       ['macro_area', 'topic', 'question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'option_e', 'correct', 'explanation'],
       [
@@ -852,12 +841,9 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
       ],
     ];
     const ws = XLSX.utils.aoa_to_sheet(rows);
-    // Column widths
     ws['!cols'] = [20, 25, 50, 20, 20, 20, 20, 20, 10, 40].map(w => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Domande');
-
-    // Second sheet: reference list of valid areas and topics
     if (areas.length > 0) {
       const ref: string[][] = [['macro_area (valori esatti)', 'topic (valori esatti)']];
       areas.forEach(a => {
@@ -869,56 +855,192 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
       ws2['!cols'] = [{ wch: 35 }, { wch: 40 }];
       XLSX.utils.book_append_sheet(wb, ws2, 'Aree e Argomenti');
     }
-
     XLSX.writeFile(wb, 'template_domande.xlsx');
   };
 
-  // ── Parse & import Excel ──
+  // ── Scarica Excel con tutte le domande ──
+  const downloadExcel = async () => {
+    const XLSX = await import('xlsx');
+    const courseName = courses.find(c => c.id === selectedCourse)?.name ?? 'domande';
+    const areaMap = new Map(areas.map(a => [a.id, a.name]));
+    const topicMap = new Map(allTopics.map(t => [t.id, t.name]));
+
+    const rows: string[][] = [
+      ['macro_area', 'topic', 'question_text', 'option_a', 'option_b', 'option_c', 'option_d', 'option_e', 'correct', 'explanation'],
+    ];
+    questions.forEach(q => {
+      const letters = q.correct_answers.map(i => String.fromCharCode(65 + i)).join(',');
+      const opts = [...q.options, '', '', '', '', ''].slice(0, 5);
+      rows.push([
+        areaMap.get(q.macro_area_id) ?? '',
+        topicMap.get(q.topic_id) ?? '',
+        q.question_text,
+        opts[0], opts[1], opts[2], opts[3], opts[4],
+        letters,
+        q.explanation ?? '',
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [25, 30, 60, 25, 25, 25, 25, 25, 10, 50].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Domande');
+    XLSX.writeFile(wb, `${courseName}_domande.xlsx`);
+  };
+
+  // ── Scarica PDF con tutte le domande e risposte ──
+  const downloadPDF = async () => {
+    const { jsPDF } = await import('jspdf');
+    const courseName = courses.find(c => c.id === selectedCourse)?.name ?? 'Domande';
+    const areaMap = new Map(areas.map(a => [a.id, a.name]));
+    const topicMap = new Map(allTopics.map(t => [t.id, t.name]));
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const maxW = pageW - margin * 2;
+    let y = margin;
+
+    const checkPage = (needed: number) => {
+      if (y + needed > pageH - margin) { doc.addPage(); y = margin; }
+    };
+
+    const writeWrapped = (text: string, x: number, fontSize: number, color: [number,number,number] = [30,30,30], bold = false) => {
+      doc.setFontSize(fontSize);
+      doc.setTextColor(...color);
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      const lines = doc.splitTextToSize(text, maxW - (x - margin));
+      checkPage(lines.length * (fontSize * 0.4) + 2);
+      doc.text(lines, x, y);
+      y += lines.length * (fontSize * 0.4) + 2;
+    };
+
+    // Titolo
+    doc.setFillColor(32, 44, 71);
+    doc.rect(0, 0, pageW, 22, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text(courseName, margin, 14);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${questions.length} domande · Generato il ${new Date().toLocaleDateString('it-IT')}`, margin, 20);
+    y = 30;
+
+    let currentArea = '';
+    questions.forEach((q, idx) => {
+      const areaName = areaMap.get(q.macro_area_id) ?? '';
+      const topicName = topicMap.get(q.topic_id) ?? '';
+
+      // Intestazione area (se cambia)
+      if (areaName !== currentArea) {
+        currentArea = areaName;
+        checkPage(12);
+        y += 3;
+        doc.setFillColor(240, 242, 247);
+        doc.roundedRect(margin, y - 5, maxW, 9, 2, 2, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(32, 44, 71);
+        doc.text(areaName.toUpperCase(), margin + 3, y + 1);
+        y += 8;
+      }
+
+      checkPage(20);
+      // Numero domanda
+      doc.setFillColor(32, 44, 71);
+      doc.circle(margin + 3, y - 1, 3, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text(String(idx + 1), margin + 3, y, { align: 'center' });
+
+      // Argomento
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text(topicName, margin + 8, y - 2);
+
+      // Testo domanda
+      y += 2;
+      writeWrapped(q.question_text, margin + 8, 9.5, [30, 30, 30], true);
+
+      // Opzioni
+      q.options.forEach((opt, i) => {
+        const isCorrect = q.correct_answers.includes(i);
+        const letter = String.fromCharCode(65 + i);
+        checkPage(6);
+        if (isCorrect) {
+          doc.setFillColor(220, 252, 231);
+          doc.roundedRect(margin + 8, y - 4, maxW - 8, 5.5, 1, 1, 'F');
+        }
+        doc.setFont('helvetica', isCorrect ? 'bold' : 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(isCorrect ? 22 : 80, isCorrect ? 101 : 80, isCorrect ? 52 : 80);
+        const lines = doc.splitTextToSize(`${letter}. ${opt}`, maxW - 12);
+        doc.text(lines, margin + 10, y);
+        y += lines.length * 3.8 + 1;
+      });
+
+      // Spiegazione
+      if (q.explanation) {
+        checkPage(8);
+        y += 1;
+        doc.setFillColor(255, 251, 235);
+        const expLines = doc.splitTextToSize(`💡 ${q.explanation}`, maxW - 10);
+        doc.roundedRect(margin + 8, y - 4, maxW - 8, expLines.length * 3.8 + 4, 1, 1, 'F');
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(120, 80, 20);
+        doc.text(expLines, margin + 11, y);
+        y += expLines.length * 3.8 + 3;
+      }
+
+      y += 4;
+
+      // Numero pagina
+      const pageCount = (doc.internal as any).getNumberOfPages();
+      for (let p = 1; p <= pageCount; p++) {
+        doc.setPage(p);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Pagina ${p} di ${pageCount}`, pageW - margin, pageH - 7, { align: 'right' });
+        doc.text('UniQuiz', margin, pageH - 7);
+      }
+    });
+
+    doc.save(`${courseName}_domande.pdf`);
+  };
+
   const handleImport = async (file: File) => {
     const XLSX = await import('xlsx');
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array' });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
-
     if (rows.length === 0) { flash('err', 'Il file è vuoto o non ha righe dati.'); return; }
-
-    // Build lookup maps (case-insensitive)
     const areaMap = new Map(areas.map(a => [a.name.trim().toLowerCase(), a]));
     const topicMap = new Map(allTopics.map(t => [t.name.trim().toLowerCase(), t]));
-
     const toInsert: Array<Omit<Question, 'id' | 'created_at' | 'updated_at'>> = [];
     const errors: string[] = [];
-
     rows.forEach((row, i) => {
-      const rowN = i + 2; // row number in Excel (1-based + header)
+      const rowN = i + 2;
       const areaName = String(row['macro_area'] ?? '').trim();
       const topicName = String(row['topic'] ?? '').trim();
       const questionText = String(row['question_text'] ?? '').trim();
-
-      if (!areaName || !topicName || !questionText) {
-        errors.push(`Riga ${rowN}: macro_area, topic o question_text mancante.`);
-        return;
-      }
-
+      if (!areaName || !topicName || !questionText) { errors.push(`Riga ${rowN}: macro_area, topic o question_text mancante.`); return; }
       const area = areaMap.get(areaName.toLowerCase());
       if (!area) { errors.push(`Riga ${rowN}: macro_area "${areaName}" non trovata. Controlla la grafia.`); return; }
-
       const topic = topicMap.get(topicName.toLowerCase());
       if (!topic) { errors.push(`Riga ${rowN}: topic "${topicName}" non trovato. Controlla la grafia.`); return; }
-
-      // Collect options (option_a … option_e, skip empty)
       const optKeys = ['option_a', 'option_b', 'option_c', 'option_d', 'option_e'];
       const opts = optKeys.map(k => String(row[k] ?? '').trim()).filter(o => o !== '');
       if (opts.length < 2) { errors.push(`Riga ${rowN}: almeno 2 opzioni richieste.`); return; }
-
       const correctRaw = row['correct'];
       const correctIdxs = parseCorrect(correctRaw, opts.length);
-      if (correctIdxs.length === 0) {
-        errors.push(`Riga ${rowN}: colonna "correct" non valida ("${correctRaw}"). Usa A, B, C… oppure 1, 2, 3… anche separati da virgola.`);
-        return;
-      }
-
+      if (correctIdxs.length === 0) { errors.push(`Riga ${rowN}: colonna "correct" non valida ("${correctRaw}"). Usa A, B, C… oppure 1, 2, 3… anche separati da virgola.`); return; }
       const shuffleVal = String(row['shuffle_options'] ?? '').trim().toLowerCase();
       const shouldShuffle = shuffleVal === '' || shuffleVal === 'true' || shuffleVal === 'si' || shuffleVal === 'sì' || shuffleVal === '1' || shuffleVal === 'yes';
       toInsert.push({
@@ -933,15 +1055,12 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         shuffle_options: shouldShuffle,
       });
     });
-
     if (errors.length > 0 && toInsert.length === 0) {
       flash('err', `Nessuna domanda importata. Errori:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n…e altri ${errors.length - 5} errori` : ''}`);
       return;
     }
-
     const { count, error } = await bulkInsertQuestions(toInsert as any);
     if (error) { flash('err', `Errore durante l'importazione: ${error}`); return; }
-
     let msg = `✅ ${count} domande importate con successo!`;
     if (errors.length > 0) msg += ` ⚠️ ${errors.length} righe saltate per errori.`;
     flash(errors.length > 0 ? 'warn' : 'ok', msg);
@@ -953,7 +1072,6 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
     <div className="space-y-4">
       {msg && <Alert type={msg.type} message={msg.text} />}
 
-      {/* Course picker */}
       <div>
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Seleziona materia</p>
         <div className="flex flex-wrap gap-2">
@@ -967,7 +1085,6 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         </div>
       </div>
 
-      {/* Area + topic filters */}
       {selectedCourse && (
         <Card className="py-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -983,7 +1100,6 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         </Card>
       )}
 
-      {/* Search bar */}
       {selectedCourse && (
         <div className="relative">
           <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1002,12 +1118,10 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         </div>
       )}
 
-      {/* Action bar */}
       {selectedCourse && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-sm text-gray-500">{filteredQs.length} domande</p>
           <div className="flex gap-2 flex-wrap">
-            {/* Download template */}
             <button onClick={downloadTemplate}
               className="flex items-center gap-1.5 text-sm bg-white border border-gray-200 text-gray-600 font-medium px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1015,7 +1129,16 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
               </svg>
               Scarica template
             </button>
-            {/* Import Excel */}
+            {/* ── NUOVO: Scarica domande ── */}
+            {questions.length > 0 && (
+              <button onClick={() => setShowDownload(true)}
+                className="flex items-center gap-1.5 text-sm bg-blue-50 border border-blue-200 text-blue-700 font-medium px-3 py-2 rounded-xl hover:bg-blue-100 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Scarica domande
+              </button>
+            )}
             <button onClick={() => setShowImport(true)}
               className="flex items-center gap-1.5 text-sm bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium px-3 py-2 rounded-xl hover:bg-emerald-100 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1023,17 +1146,25 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
               </svg>
               Importa Excel
             </button>
-            {/* New question */}
             <button onClick={() => { setEditing({}); setShowModal(true); }} className="btn-primary text-sm py-2 px-4">
               + Nuova domanda
             </button>
+            {/* ── NUOVO: Elimina tutte ── */}
+            {questions.length > 0 && (
+              <button onClick={() => setShowBulkDelete(true)}
+                className="flex items-center gap-1.5 text-sm bg-white border border-red-200 text-red-500 font-medium px-3 py-2 rounded-xl hover:bg-red-50 transition-colors">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Elimina tutte
+              </button>
+            )}
           </div>
         </div>
       )}
 
       {loading && <Spinner className="mt-10" />}
 
-      {/* Question list */}
       {!loading && selectedCourse && filteredQs.map(q => (
         <Card key={q.id} className="border border-gray-100">
           <div className="flex items-start justify-between gap-3">
@@ -1078,7 +1209,6 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         </Card>
       )}
 
-      {/* Import modal */}
       {showImport && (
         <ImportModal
           onClose={() => setShowImport(false)}
@@ -1087,7 +1217,62 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         />
       )}
 
-      {/* Edit/new modal */}
+      {/* ── NUOVO: Modal scarica domande ── */}
+      {showDownload && (
+        <Modal title="Scarica domande" onClose={() => setShowDownload(false)}>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500">
+              Scarica tutte le <strong>{questions.length} domande</strong> della materia selezionata.
+            </p>
+            <button
+              onClick={() => { downloadExcel(); setShowDownload(false); }}
+              className="flex items-center gap-3 w-full p-4 bg-emerald-50 border-2 border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors text-left">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-emerald-800 text-sm">Scarica Excel (.xlsx)</p>
+                <p className="text-xs text-emerald-600 mt-0.5">Formato importabile — stesso schema del template</p>
+              </div>
+            </button>
+            <button
+              onClick={() => { downloadPDF(); setShowDownload(false); }}
+              className="flex items-center gap-3 w-full p-4 bg-red-50 border-2 border-red-200 rounded-xl hover:bg-red-100 transition-colors text-left">
+              <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-red-800 text-sm">Scarica PDF</p>
+                <p className="text-xs text-red-600 mt-0.5">Domande con opzioni e risposte corrette evidenziate</p>
+              </div>
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── NUOVO: Modal elimina tutte le domande ── */}
+      {showBulkDelete && (
+        <BulkDeleteModal
+          courseName={courses.find(c => c.id === selectedCourse)?.name ?? ''}
+          count={questions.length}
+          onClose={() => setShowBulkDelete(false)}
+          onConfirm={async () => {
+            const { supabase } = await import('@/lib/supabase');
+            const { error } = await supabase
+              .from('questions')
+              .delete()
+              .eq('course_id', selectedCourse);
+            if (error) { flash('err', 'Errore durante l\'eliminazione.'); }
+            else { flash('ok', `✅ ${questions.length} domande eliminate.`); reload(); }
+            setShowBulkDelete(false);
+          }}
+        />
+      )}
+
       {showModal && selectedCourse && (
         <QuestionModal
           initial={editing ?? {}}
@@ -1103,6 +1288,86 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
         />
       )}
     </div>
+  );
+}
+
+// ─── BULK DELETE MODAL ────────────────────────────────────────────────────────
+function BulkDeleteModal({ courseName, count, onClose, onConfirm }: {
+  courseName: string;
+  count: number;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const CONFIRM_PHRASE = 'elimina tutte le domande';
+  const [text, setText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const isValid = text.trim().toLowerCase() === CONFIRM_PHRASE;
+
+  const handleConfirm = async () => {
+    if (!isValid) return;
+    setDeleting(true);
+    await onConfirm();
+    setDeleting(false);
+  };
+
+  return (
+    <Modal title="⚠️ Elimina tutte le domande" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+          <p className="text-sm font-semibold text-red-700 mb-1">Questa azione è irreversibile</p>
+          <p className="text-sm text-red-600">
+            Stai per eliminare <strong>{count} domande</strong> dalla materia <strong>{courseName}</strong>.
+            Non sarà possibile recuperarle.
+          </p>
+        </div>
+
+        <div>
+          <p className="text-sm text-gray-700 mb-2">
+            Per confermare, scrivi esattamente:
+          </p>
+          <p className="font-mono font-bold text-sm text-gray-800 bg-gray-100 rounded-lg px-3 py-2 mb-3 select-all">
+            {CONFIRM_PHRASE}
+          </p>
+          <input
+            type="text"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="Scrivi la frase di conferma…"
+            className={`w-full border-2 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors ${
+              text.length > 0
+                ? isValid
+                  ? 'border-emerald-400 focus:ring-2 focus:ring-emerald-300'
+                  : 'border-red-300 focus:ring-2 focus:ring-red-200'
+                : 'border-gray-300 focus:ring-2 focus:ring-gray-200'
+            }`}
+            autoFocus
+          />
+          {text.length > 0 && !isValid && (
+            <p className="text-xs text-red-500 mt-1">La frase non è corretta. Rispetta lettere minuscole e spazi.</p>
+          )}
+          {isValid && (
+            <p className="text-xs text-emerald-600 mt-1">✓ Frase corretta — puoi procedere.</p>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors">
+            Annulla
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={!isValid || deleting}
+            className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
+              isValid
+                ? 'bg-red-600 text-white hover:bg-red-700'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}>
+            {deleting ? 'Eliminazione…' : `Elimina ${count} domande`}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -1131,8 +1396,6 @@ function ImportModal({ onClose, onDownloadTemplate, onImport }: {
   return (
     <Modal title="Importa domande da Excel" onClose={onClose}>
       <div className="space-y-4">
-
-        {/* Step 1 */}
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
           <p className="text-sm font-semibold text-blue-800 mb-2">Passo 1 — Scarica il template</p>
           <p className="text-xs text-blue-700 leading-relaxed mb-3">
@@ -1147,18 +1410,16 @@ function ImportModal({ onClose, onDownloadTemplate, onImport }: {
           </button>
         </div>
 
-        {/* Step 2 */}
         <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
           <p className="text-sm font-semibold text-gray-700 mb-2">Passo 2 — Compila il file</p>
           <div className="text-xs text-gray-600 space-y-1">
             <p>• <strong>macro_area</strong> e <strong>topic</strong>: copia i nomi esatti dal secondo foglio del template</p>
             <p>• <strong>option_a … option_e</strong>: le opzioni di risposta (option_e può essere vuota per 4 opzioni)</p>
             <p>• <strong>correct</strong>: la lettera della risposta corretta: <code className="bg-gray-100 px-1 rounded">A</code>, <code className="bg-gray-100 px-1 rounded">B</code>, ecc. Per risposte multiple: <code className="bg-gray-100 px-1 rounded">A,C</code></p>
-            <p>• <strong>explanation</strong>: facoltativa, viene mostrata dopo la risposta nell'esercitazione</p>
+            <p>• <strong>explanation</strong>: facoltativa, viene mostrata dopo la risposta nell&apos;esercitazione</p>
           </div>
         </div>
 
-        {/* Step 3 — file drop */}
         <div>
           <p className="text-sm font-semibold text-gray-700 mb-2">Passo 3 — Carica il file compilato</p>
           <label
@@ -1290,11 +1551,9 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed' | 'resolved'>('pending');
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-  // Inline edit state
   const [editingReport, setEditingReport] = useState<QuestionReport | null>(null);
   const [editQuestion, setEditQuestion] = useState<Question | null>(null);
   const [editLoading, setEditLoading] = useState(false);
-  // Edit form state
   const [editText, setEditText] = useState('');
   const [editOptions, setEditOptions] = useState<string[]>([]);
   const [editCorrects, setEditCorrects] = useState<number[]>([]);
@@ -1317,11 +1576,9 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
     else { flash('ok', 'Stato aggiornato.'); load(); }
   };
 
-  // Open edit modal — fetch full question from DB
   const openEdit = async (r: QuestionReport) => {
     setEditingReport(r);
     setEditLoading(true);
-    // fetch question directly
     const { data } = await (await import('@/lib/supabase')).supabase
       .from('questions')
       .select('*')
@@ -1352,7 +1609,6 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
     });
     if (error) { flash('err', error); return; }
     flash('ok', 'Domanda aggiornata con successo!');
-    // Also mark report as resolved
     if (editingReport) await updateReportStatus(editingReport.id, 'resolved');
     setEditingReport(null);
     setEditQuestion(null);
@@ -1378,7 +1634,6 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
     <div className="space-y-4">
       {msg && <Alert type={msg.type} message={msg.text} />}
 
-      {/* Filter bar */}
       <div className="flex gap-2 flex-wrap">
         {(['all', 'pending', 'reviewed', 'resolved'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
@@ -1429,9 +1684,7 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
             </div>
           </div>
 
-          {/* Action buttons */}
           <div className="flex gap-2 flex-wrap mt-2">
-            {/* Main CTA: edit question directly */}
             <button onClick={() => openEdit(r)}
               className="flex items-center gap-1.5 text-xs bg-[rgb(32,44,71)] text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-[rgb(52,69,110)] transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1461,7 +1714,6 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
         </Card>
       ))}
 
-      {/* Inline edit modal */}
       {editingReport && (
         <Modal title="Modifica domanda segnalata" onClose={() => { setEditingReport(null); setEditQuestion(null); }}>
           {editLoading ? (
@@ -1473,7 +1725,6 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Context from report */}
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
                 <p className="font-semibold">⚠️ Segnalazione studente:</p>
                 <p>Risposta selezionata: <span className="font-medium text-red-700">{editingReport.selected_answer}</span></p>
