@@ -41,12 +41,12 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[rgb(32,44,71)] to-[rgb(52,69,110)] p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
-          <div className="text-5xl mb-4">⏳</div>
+          <div className="text-5xl mb-4">📬</div>
           <h2 className="text-xl font-bold text-[rgb(32,44,71)] mb-3">Registrazione completata!</h2>
           <p className="text-gray-600 text-sm leading-relaxed">
-            Il tuo account è stato creato con successo.<br /><br />
-            La tua richiesta è <strong>in attesa di approvazione</strong> da parte di un amministratore.
-            Potrai accedere non appena il tuo account sarà attivato.
+            Ti abbiamo inviato una email di conferma a <strong>{email}</strong>.<br /><br />
+            Dopo aver confermato l&apos;indirizzo, il tuo account dovrà essere <strong>attivato da un amministratore</strong>.
+            Riceverai una notifica appena sarai abilitato ad accedere.
           </p>
           <Link href="/login" className="btn-primary inline-block mt-6 px-8">
             Torna al login
@@ -64,7 +64,6 @@ export default function RegisterPage() {
             <span className="text-3xl">🩺</span>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">UniQuiz</h1>
-          <p className="text-blue-200 mt-1 text-sm">Preparazione esami · UniSR</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
