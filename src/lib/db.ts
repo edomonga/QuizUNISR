@@ -174,7 +174,7 @@ export async function recordQuizAnswers(
   courseId: string,
   answers: { question: Question; correct: boolean }[]
 ): Promise<void> {
-  // Group by topic and macro area, upsert aggregates
+  // ── 1. Aggrega per topic (come prima) ─────────────────────────────────────
   const topicMap = new Map<string, { topic_id: string; topic_name: string; macro_area_id: string; macro_area_name: string; correct: number; total: number }>();
 
   for (const { question, correct } of answers) {
@@ -195,7 +195,6 @@ export async function recordQuizAnswers(
   }
 
   for (const entry of Array.from(topicMap.values())) {
-    // Fetch existing
     const { data: existing } = await supabase
       .from('user_stats')
       .select('id, correct, total')
@@ -223,6 +222,99 @@ export async function recordQuizAnswers(
       });
     }
   }
+
+  // ── 2. NUOVO: salva domande sbagliate e aggiorna quelle corrette ──────────
+  const now = new Date().toISOString();
+
+  const wrongAnswers = answers.filter(a => !a.correct);
+  const rightAnswers = answers.filter(a => a.correct);
+
+  // Per ogni domanda sbagliata: se esiste già incrementa il contatore, altrimenti crea la riga
+  for (const { question } of wrongAnswers) {
+    const { data: existing } = await supabase
+      .from('user_wrong_questions')
+      .select('id, wrong_count')
+      .eq('user_id', userId)
+      .eq('question_id', question.id)
+      .single();
+
+    if (existing) {
+      await supabase.from('user_wrong_questions').update({
+        wrong_count: existing.wrong_count + 1,
+        last_wrong_at: now,
+        updated_at: now,
+      }).eq('id', existing.id);
+    } else {
+      await supabase.from('user_wrong_questions').insert({
+        user_id: userId,
+        course_id: courseId,
+        question_id: question.id,
+        wrong_count: 1,
+        last_wrong_at: now,
+        updated_at: now,
+      });
+    }
+  }
+
+  // Per ogni domanda risposta correttamente: aggiorna last_correct_at (se esiste nella tabella errori)
+  for (const { question } of rightAnswers) {
+    await supabase.from('user_wrong_questions')
+      .update({ last_correct_at: now, updated_at: now })
+      .eq('user_id', userId)
+      .eq('question_id', question.id);
+  }
+}
+
+// ─── Wrong questions (ripasso errori) ────────────────────────────────────────
+
+/** Restituisce le domande sbagliate di un utente, ordinate dalla più sbagliata */
+export async function getWrongQuestions(
+  userId: string,
+  courseId: string,
+  limit = 100
+): Promise<{ questions: Question[]; wrongCountMap: Record<string, number> }> {
+  const { data: wrongData } = await supabase
+    .from('user_wrong_questions')
+    .select('question_id, wrong_count')
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .order('wrong_count', { ascending: false })
+    .limit(limit);
+
+  if (!wrongData?.length) return { questions: [], wrongCountMap: {} };
+
+  const ids = wrongData.map((r: any) => r.question_id);
+  const wrongCountMap: Record<string, number> = {};
+  for (const r of wrongData as any[]) {
+    wrongCountMap[r.question_id] = r.wrong_count;
+  }
+
+  const { data: questions } = await supabase
+    .from('questions')
+    .select('*, macro_areas(name), topics(name)')
+    .in('id', ids)
+    .eq('is_active', true);
+
+  const qs = (questions ?? []).map((row: any) => ({
+    ...row,
+    macro_area_name: row.macro_areas?.name,
+    topic_name: row.topics?.name,
+  })) as Question[];
+
+  // Ordina rispettando l'ordine per wrong_count (le più sbagliate prima)
+  qs.sort((a, b) => (wrongCountMap[b.id] ?? 0) - (wrongCountMap[a.id] ?? 0));
+
+  return { questions: qs, wrongCountMap };
+}
+
+/** Conta quante domande sbagliate ha un utente per un corso */
+export async function countWrongQuestions(userId: string, courseId: string): Promise<number> {
+  const { count } = await supabase
+    .from('user_wrong_questions')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('course_id', courseId);
+  return count ?? 0;
 }
 
 // ─── Exam results ─────────────────────────────────────────────────────────────
@@ -257,7 +349,6 @@ export async function updateProfile(id: string, patch: Partial<Pick<Profile, 'di
 }
 
 export async function deleteProfile(id: string): Promise<{ error: string | null }> {
-  // Deleting from profiles cascades (auth.users deletion must be done via service-role key, so we just deactivate)
   const { error } = await supabase.from('profiles').update({ is_active: false }).eq('id', id);
   return { error: error?.message ?? null };
 }
@@ -305,16 +396,7 @@ export async function updateReportStatus(id: string, status: 'pending' | 'review
 
 // ─── Unseen questions tracking ────────────────────────────────────────────────
 
-/** Returns question IDs the user has already seen in this course */
 export async function getSeenQuestionIds(userId: string, courseId: string): Promise<Set<string>> {
-  const { data } = await supabase
-    .from('user_stats')
-    .select('topic_id')
-    .eq('user_id', userId)
-    .eq('course_id', courseId)
-    .gt('total', 0);
-  // user_stats tracks by topic, not question — we need per-question tracking
-  // Use a dedicated seen table if available, otherwise fall back to empty set
   const { data: seen } = await supabase
     .from('user_questions_seen')
     .select('question_id')
@@ -323,7 +405,6 @@ export async function getSeenQuestionIds(userId: string, courseId: string): Prom
   return new Set((seen ?? []).map((r: any) => r.question_id));
 }
 
-/** Mark questions as seen after a quiz session */
 export async function markQuestionsSeen(
   userId: string,
   courseId: string,
@@ -335,11 +416,9 @@ export async function markQuestionsSeen(
     course_id: courseId,
     question_id: qid,
   }));
-  // upsert — ignore duplicates
   await supabase.from('user_questions_seen').upsert(rows, { ignoreDuplicates: true });
 }
 
-/** Get unseen questions for a course filtered by areas/topics */
 export async function getUnseenQuestions(
   userId: string,
   courseId: string,
@@ -363,11 +442,9 @@ export async function getUnseenQuestions(
     topic_name: row.topics?.name,
   })) as Question[];
 
-  // Filter out seen
   return seenIds.size > 0 ? all.filter(q => !seenIds.has(q.id)) : all;
 }
 
-/** Count unseen questions for a course */
 export async function countUnseenQuestions(userId: string, courseId: string): Promise<{ unseen: number; total: number }> {
   const seenIds = await getSeenQuestionIds(userId, courseId);
   const { count: total } = await supabase
