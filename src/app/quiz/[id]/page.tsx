@@ -6,15 +6,17 @@ import {
   getCourse, getMacroAreas, getTopics, getQuestions,
   recordQuizAnswers, submitReport,
   getUnseenQuestions, countUnseenQuestions, markQuestionsSeen,
-  getWrongQuestions, countWrongQuestions,
+  getWrongQuestions, countWrongQuestions, markQuestionMastered,
 } from '@/lib/db';
+import type { WrongQuestionEntry } from '@/lib/db';
 import { PageShell, Card, Spinner, Checkbox, ProgressBar, Modal } from '@/components/ui';
 import type { Course, MacroArea, Topic, Question } from '@/types';
 
 type Phase = 'setup' | 'quiz' | 'results';
 type QuizMode = 'all' | 'unseen' | 'wrong';
 
-// Shuffle options for a question respecting shuffle_options flag
+const MASTERY_THRESHOLD = 5;
+
 function prepareQuestion(q: Question): Question & { _sopts: string[]; _scorrect: number[]; _shuffled: boolean } {
   const raw = q as any;
   if (raw._shuffled) return raw;
@@ -46,20 +48,15 @@ export default function QuizPage() {
   const [allQs, setAllQs] = useState<Question[]>([]);
   const [fetching, setFetching] = useState(true);
 
-  // Unseen stats
   const [unseenCount, setUnseenCount] = useState<{ unseen: number; total: number } | null>(null);
-
-  // Wrong questions stats
   const [wrongCount, setWrongCount] = useState<number>(0);
-  const [wrongCountMap, setWrongCountMap] = useState<Record<string, number>>({});
+  const [wrongDataMap, setWrongDataMap] = useState<Record<string, WrongQuestionEntry>>({});
 
-  // Setup
   const [selAreas, setSelAreas] = useState<string[]>([]);
   const [selTopics, setSelTopics] = useState<string[]>([]);
   const [count, setCount] = useState(10);
   const [mode, setMode] = useState<QuizMode>('all');
 
-  // Quiz
   const [phase, setPhase] = useState<Phase>('setup');
   const [quizQs, setQuizQs] = useState<Question[]>([]);
   const [cur, setCur] = useState(0);
@@ -69,6 +66,9 @@ export default function QuizPage() {
   const [reportNote, setReportNote] = useState('');
   const [reportSent, setReportSent] = useState(false);
   const [log, setLog] = useState<{ question: Question; correct: boolean }[]>([]);
+
+  // Tiene traccia dello stato "la so" cliccato durante la sessione (per aggiornare UI subito)
+  const [masteredThisSession, setMasteredThisSession] = useState<Set<string>>(new Set());
 
   useEffect(() => { if (!loading && !user) router.push('/login'); }, [user, loading, router]);
 
@@ -111,9 +111,8 @@ export default function QuizPage() {
     let picked: Question[];
 
     if (mode === 'wrong') {
-      // Modalità ripasso errori: ignora selezione aree, prende le più sbagliate
-      const { questions, wrongCountMap: wcm } = await getWrongQuestions(user.id, courseId, count);
-      setWrongCountMap(wcm);
+      const { questions, wrongDataMap: wdm } = await getWrongQuestions(user.id, courseId, count);
+      setWrongDataMap(wdm);
       picked = questions.slice(0, count);
     } else if (mode === 'unseen') {
       if (!selAreas.length || !pool.length) return;
@@ -128,16 +127,12 @@ export default function QuizPage() {
     }
 
     if (!picked.length) return;
+    setMasteredThisSession(new Set());
     setQuizQs(picked); setCur(0); setSel([]); setAnswered(false); setLog([]); setPhase('quiz');
   };
 
   // ── SETUP PHASE ──────────────────────────────────────────────────────────────
   if (phase === 'setup') {
-    const stepN = (n: number) => availTopics.length > 0 ? String(n) : String(n - 1);
-    const unseenInPool = mode === 'unseen' && unseenCount
-      ? `${unseenCount.unseen} non viste su ${unseenCount.total} totali`
-      : null;
-
     const isWrongMode = mode === 'wrong';
     const canStart = isWrongMode
       ? wrongCount > 0
@@ -153,7 +148,6 @@ export default function QuizPage() {
             <h2 className="text-xl font-bold text-[rgb(32,44,71)]">Configura esercitazione</h2>
           </div>
 
-          {/* Mode selector — ora 3 pulsanti */}
           <Card>
             <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">1 · Modalità</h3>
             <div className="grid grid-cols-1 gap-2">
@@ -173,12 +167,11 @@ export default function QuizPage() {
                 className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'wrong' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-red-200'}`}>
                 <div className="font-semibold text-sm text-red-700">🔁 Ripassa gli errori</div>
                 <div className="text-xs text-gray-400 mt-0.5">
-                  {wrongCount > 0 ? `${wrongCount} domande sbagliate in passato` : 'Nessun errore registrato ancora'}
+                  {wrongCount > 0 ? `${wrongCount} domande da ripassare` : 'Nessun errore registrato ancora'}
                 </div>
               </button>
             </div>
 
-            {/* Barra progresso per modalità non viste */}
             {mode === 'unseen' && unseenCount && unseenCount.total > 0 && (
               <div className="mt-4">
                 <div className="flex justify-between text-xs text-gray-500 mb-1.5">
@@ -188,10 +181,8 @@ export default function QuizPage() {
                   </span>
                 </div>
                 <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-[rgb(32,44,71)] to-[rgb(99,130,201)]"
-                    style={{ width: `${Math.round(((unseenCount.total - unseenCount.unseen) / unseenCount.total) * 100)}%` }}
-                  />
+                  <div className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-[rgb(32,44,71)] to-[rgb(99,130,201)]"
+                    style={{ width: `${Math.round(((unseenCount.total - unseenCount.unseen) / unseenCount.total) * 100)}%` }} />
                 </div>
                 <div className="flex justify-between text-xs mt-1">
                   <span className="text-gray-400">{unseenCount.unseen} da vedere</span>
@@ -204,24 +195,23 @@ export default function QuizPage() {
 
             {mode === 'unseen' && unseenCount?.unseen === 0 && (
               <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 font-medium text-center">
-                🎉 Hai visto tutte le domande disponibili! Passa alla modalità "Tutte" per ripassare.
+                🎉 Hai visto tutte le domande! Passa alla modalità "Tutte" per ripassare.
               </div>
             )}
 
-            {/* Riepilogo modalità errori */}
             {mode === 'wrong' && wrongCount === 0 && (
               <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 text-center">
-                Non hai ancora sbagliato domande registrate. Fai prima una sessione di esercitazione!
+                Non hai ancora errori registrati. Fai prima una sessione di esercitazione!
               </div>
             )}
             {mode === 'wrong' && wrongCount > 0 && (
-              <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700">
-                Le domande verranno ordinate dalla <strong>più sbagliata alla meno sbagliata</strong>. Potrai scegliere quante farne sotto.
+              <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700 space-y-1">
+                <p>Le domande più sbagliate vengono prima.</p>
+                <p>Puoi cliccare <strong>"✅ La so!"</strong> per rimuoverle subito, oppure spariscono da sole dopo <strong>5 risposte corrette di fila</strong>.</p>
               </div>
             )}
           </Card>
 
-          {/* Selezione aree e topic — NASCOSTA in modalità errori */}
           {!isWrongMode && (
             <>
               <Card>
@@ -263,8 +253,7 @@ export default function QuizPage() {
             </>
           )}
 
-          {/* Numero domande */}
-          {(!isWrongMode ? (selAreas.length > 0) : wrongCount > 0) && (
+          {(!isWrongMode ? selAreas.length > 0 : wrongCount > 0) && (
             <Card>
               <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">
                 {isWrongMode ? '2' : availTopics.length > 0 ? '4' : '3'} · Numero di domande:
@@ -281,13 +270,8 @@ export default function QuizPage() {
             </Card>
           )}
 
-          <button onClick={startQuiz}
-            disabled={!canStart}
-            className={`w-full py-3 text-base rounded-xl font-semibold transition-all disabled:opacity-40 ${
-              isWrongMode
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'btn-primary'
-            }`}>
+          <button onClick={startQuiz} disabled={!canStart}
+            className={`w-full py-3 text-base rounded-xl font-semibold transition-all disabled:opacity-40 ${isWrongMode ? 'bg-red-500 hover:bg-red-600 text-white' : 'btn-primary'}`}>
             {isWrongMode ? '🔁 Inizia ripasso errori →' : 'Inizia esercitazione →'}
           </button>
         </div>
@@ -301,7 +285,11 @@ export default function QuizPage() {
     const displayOpts: string[] = (rawQ as any)._sopts;
     const shuffledCorrect: number[] = (rawQ as any)._scorrect;
     const allowMultiple = course.exam_rules.allow_multiple_correct;
-    const timesWrong = mode === 'wrong' ? (wrongCountMap[rawQ.id] ?? 0) : 0;
+
+    const wrongEntry = mode === 'wrong' ? wrongDataMap[rawQ.id] : null;
+    const timesWrong = wrongEntry?.wrong_count ?? 0;
+    const consecutiveCorrect = wrongEntry?.consecutive_correct ?? 0;
+    const alreadyMasteredThisSession = masteredThisSession.has(rawQ.id);
 
     const pick = (idx: number) => {
       if (answered) return;
@@ -315,6 +303,13 @@ export default function QuizPage() {
 
     const isCorrect = () =>
       sel.length === shuffledCorrect.length && sel.every(i => shuffledCorrect.includes(i));
+
+    const handleMastered = async () => {
+      if (!user) return;
+      await markQuestionMastered(user.id, rawQ.id);
+      setMasteredThisSession(prev => new Set([...prev, rawQ.id]));
+      setWrongCount(c => Math.max(0, c - 1));
+    };
 
     const next = async () => {
       const c = isCorrect();
@@ -347,25 +342,29 @@ export default function QuizPage() {
             <span className="text-sm text-gray-400 tabular-nums flex-shrink-0">{cur + 1}/{quizQs.length}</span>
           </div>
 
-          {/* Badge modalità errori con contatore sbagli */}
-          {mode === 'wrong' && timesWrong > 0 && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {mode === 'wrong' && timesWrong > 0 && (
               <span className="text-xs bg-red-100 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium">
-                🔁 Sbagliata {timesWrong} {timesWrong === 1 ? 'volta' : 'volte'}
+                ❌ Sbagliata {timesWrong} {timesWrong === 1 ? 'volta' : 'volte'}
               </span>
-              <span className="text-xs text-gray-400">{rawQ.macro_area_name}</span>
-            </div>
-          )}
-
-          {mode !== 'wrong' && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full font-medium">{rawQ.macro_area_name}</span>
-              <span className="text-xs text-gray-400">{rawQ.topic_name}</span>
-            </div>
-          )}
+            )}
+            {mode === 'wrong' && consecutiveCorrect > 0 && !alreadyMasteredThisSession && (
+              <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
+                ✅ {consecutiveCorrect}/{MASTERY_THRESHOLD} corrette di fila
+              </span>
+            )}
+            {alreadyMasteredThisSession && (
+              <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
+                🏆 Rimossa dall'archivio errori
+              </span>
+            )}
+            <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full font-medium">{rawQ.macro_area_name}</span>
+            <span className="text-xs text-gray-400">{rawQ.topic_name}</span>
+          </div>
 
           <Card><p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{rawQ.question_text}</p></Card>
           {allowMultiple && !answered && <p className="text-xs text-amber-600 font-medium">⚠️ Possono esserci più risposte corrette</p>}
+
           <div className="space-y-2">
             {displayOpts.map((opt: string, idx: number) => {
               const isCorr = shuffledCorrect.includes(idx);
@@ -396,6 +395,15 @@ export default function QuizPage() {
                 {isCorrect() ? '✅ Risposta corretta!' : <>❌ Risposta errata. <span className="font-semibold">Corretta/e: {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</span></>}
                 {rawQ.explanation && <p className="mt-1 text-xs opacity-80">{rawQ.explanation}</p>}
               </div>
+
+              {/* Pulsante "La so!" — visibile solo in modalità errori, solo se corretta, solo se non già rimossa */}
+              {mode === 'wrong' && isCorrect() && !alreadyMasteredThisSession && (
+                <button onClick={handleMastered}
+                  className="w-full py-2.5 rounded-xl border-2 border-emerald-400 bg-emerald-50 text-emerald-700 font-semibold text-sm hover:bg-emerald-100 transition-all">
+                  ✅ La so! Rimuovi dall'archivio errori
+                </button>
+              )}
+
               <div className="flex gap-2">
                 <button onClick={next} className="btn-primary flex-1">
                   {cur === quizQs.length - 1 ? 'Vedi risultati' : 'Prossima →'}
@@ -444,6 +452,7 @@ export default function QuizPage() {
   // ── RESULTS PHASE ─────────────────────────────────────────────────────────────
   const correct = log.filter(e => e.correct).length;
   const pct = Math.round((correct / quizQs.length) * 100);
+  const masteredCount = masteredThisSession.size;
 
   return (
     <PageShell courseName={course.name}>
@@ -462,9 +471,20 @@ export default function QuizPage() {
             <div className="p-3 bg-red-50 rounded-xl"><div className="text-2xl font-bold text-red-500">{quizQs.length - correct}</div><div className="text-xs text-red-500 mt-0.5">Errate</div></div>
           </div>
 
+          {/* Riepilogo ripasso errori */}
+          {mode === 'wrong' && masteredCount > 0 && (
+            <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+              🏆 Hai rimosso <span className="font-semibold">{masteredCount}</span> {masteredCount === 1 ? 'domanda' : 'domande'} dall'archivio errori!
+            </div>
+          )}
           {mode === 'wrong' && wrongCount > 0 && (
-            <div className="mt-4 p-3 bg-red-50 rounded-xl text-sm text-red-700">
-              Hai ancora <span className="font-semibold">{wrongCount}</span> domande da ripassare nel tuo archivio errori.
+            <div className="mt-2 p-3 bg-red-50 rounded-xl text-sm text-red-700">
+              Hai ancora <span className="font-semibold">{wrongCount}</span> {wrongCount === 1 ? 'domanda' : 'domande'} da ripassare.
+            </div>
+          )}
+          {mode === 'wrong' && wrongCount === 0 && (
+            <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 font-medium">
+              🎉 Archivio errori vuoto! Ottimo lavoro!
             </div>
           )}
 
