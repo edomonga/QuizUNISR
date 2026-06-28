@@ -174,7 +174,7 @@ export async function recordQuizAnswers(
   courseId: string,
   answers: { question: Question; correct: boolean }[]
 ): Promise<void> {
-  // ── 1. Aggrega per topic (come prima) ─────────────────────────────────────
+  // ── 1. Aggrega per topic ───────────────────────────────────────────────────
   const topicMap = new Map<string, { topic_id: string; topic_name: string; macro_area_id: string; macro_area_name: string; correct: number; total: number }>();
 
   for (const { question, correct } of answers) {
@@ -223,70 +223,91 @@ export async function recordQuizAnswers(
     }
   }
 
-  // ── 2. NUOVO: salva domande sbagliate e aggiorna quelle corrette ──────────
+  // ── 2. Aggiorna archivio errori ────────────────────────────────────────────
   const now = new Date().toISOString();
+  const MASTERY_THRESHOLD = 5; // risposte corrette consecutive per "padronanza"
 
-  const wrongAnswers = answers.filter(a => !a.correct);
-  const rightAnswers = answers.filter(a => a.correct);
-
-  // Per ogni domanda sbagliata: se esiste già incrementa il contatore, altrimenti crea la riga
-  for (const { question } of wrongAnswers) {
+  for (const { question, correct } of answers) {
     const { data: existing } = await supabase
       .from('user_wrong_questions')
-      .select('id, wrong_count')
+      .select('id, wrong_count, consecutive_correct, is_mastered')
       .eq('user_id', userId)
       .eq('question_id', question.id)
       .single();
 
-    if (existing) {
-      await supabase.from('user_wrong_questions').update({
-        wrong_count: existing.wrong_count + 1,
-        last_wrong_at: now,
-        updated_at: now,
-      }).eq('id', existing.id);
+    if (!correct) {
+      // Risposta sbagliata
+      if (existing) {
+        await supabase.from('user_wrong_questions').update({
+          wrong_count: existing.wrong_count + 1,
+          consecutive_correct: 0,      // azzera la serie positiva
+          is_mastered: false,           // torna nell'archivio se era stata rimossa
+          last_wrong_at: now,
+          updated_at: now,
+        }).eq('id', existing.id);
+      } else {
+        await supabase.from('user_wrong_questions').insert({
+          user_id: userId,
+          course_id: courseId,
+          question_id: question.id,
+          wrong_count: 1,
+          consecutive_correct: 0,
+          is_mastered: false,
+          last_wrong_at: now,
+          updated_at: now,
+        });
+      }
     } else {
-      await supabase.from('user_wrong_questions').insert({
-        user_id: userId,
-        course_id: courseId,
-        question_id: question.id,
-        wrong_count: 1,
-        last_wrong_at: now,
-        updated_at: now,
-      });
+      // Risposta corretta — aggiorna solo se esiste nell'archivio errori
+      if (existing && !existing.is_mastered) {
+        const newConsecutive = existing.consecutive_correct + 1;
+        const mastered = newConsecutive >= MASTERY_THRESHOLD;
+        await supabase.from('user_wrong_questions').update({
+          consecutive_correct: newConsecutive,
+          is_mastered: mastered,
+          last_correct_at: now,
+          updated_at: now,
+        }).eq('id', existing.id);
+      }
     }
-  }
-
-  // Per ogni domanda risposta correttamente: aggiorna last_correct_at (se esiste nella tabella errori)
-  for (const { question } of rightAnswers) {
-    await supabase.from('user_wrong_questions')
-      .update({ last_correct_at: now, updated_at: now })
-      .eq('user_id', userId)
-      .eq('question_id', question.id);
   }
 }
 
 // ─── Wrong questions (ripasso errori) ────────────────────────────────────────
 
-/** Restituisce le domande sbagliate di un utente, ordinate dalla più sbagliata */
+export interface WrongQuestionEntry {
+  question_id: string;
+  wrong_count: number;
+  consecutive_correct: number;
+  is_mastered: boolean;
+}
+
+/** Restituisce le domande sbagliate NON ancora padroneggiate, ordinate dalla più sbagliata */
 export async function getWrongQuestions(
   userId: string,
   courseId: string,
   limit = 100
-): Promise<{ questions: Question[]; wrongCountMap: Record<string, number> }> {
+): Promise<{ questions: Question[]; wrongDataMap: Record<string, WrongQuestionEntry> }> {
   const { data: wrongData } = await supabase
     .from('user_wrong_questions')
-    .select('question_id, wrong_count')
+    .select('question_id, wrong_count, consecutive_correct, is_mastered')
     .eq('user_id', userId)
     .eq('course_id', courseId)
+    .eq('is_mastered', false)           // solo quelle non ancora padroneggiate
     .order('wrong_count', { ascending: false })
     .limit(limit);
 
-  if (!wrongData?.length) return { questions: [], wrongCountMap: {} };
+  if (!wrongData?.length) return { questions: [], wrongDataMap: {} };
 
   const ids = wrongData.map((r: any) => r.question_id);
-  const wrongCountMap: Record<string, number> = {};
+  const wrongDataMap: Record<string, WrongQuestionEntry> = {};
   for (const r of wrongData as any[]) {
-    wrongCountMap[r.question_id] = r.wrong_count;
+    wrongDataMap[r.question_id] = {
+      question_id: r.question_id,
+      wrong_count: r.wrong_count,
+      consecutive_correct: r.consecutive_correct,
+      is_mastered: r.is_mastered,
+    };
   }
 
   const { data: questions } = await supabase
@@ -301,20 +322,30 @@ export async function getWrongQuestions(
     topic_name: row.topics?.name,
   })) as Question[];
 
-  // Ordina rispettando l'ordine per wrong_count (le più sbagliate prima)
-  qs.sort((a, b) => (wrongCountMap[b.id] ?? 0) - (wrongCountMap[a.id] ?? 0));
+  qs.sort((a, b) => (wrongDataMap[b.id]?.wrong_count ?? 0) - (wrongDataMap[a.id]?.wrong_count ?? 0));
 
-  return { questions: qs, wrongCountMap };
+  return { questions: qs, wrongDataMap };
 }
 
-/** Conta quante domande sbagliate ha un utente per un corso */
+/** Conta le domande sbagliate non ancora padroneggiate */
 export async function countWrongQuestions(userId: string, courseId: string): Promise<number> {
   const { count } = await supabase
     .from('user_wrong_questions')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('course_id', courseId);
+    .eq('course_id', courseId)
+    .eq('is_mastered', false);
   return count ?? 0;
+}
+
+/** Segna manualmente una domanda come "la so" (rimossa dall'archivio errori) */
+export async function markQuestionMastered(userId: string, questionId: string): Promise<void> {
+  await supabase.from('user_wrong_questions').update({
+    is_mastered: true,
+    updated_at: new Date().toISOString(),
+  })
+    .eq('user_id', userId)
+    .eq('question_id', questionId);
 }
 
 // ─── Exam results ─────────────────────────────────────────────────────────────
