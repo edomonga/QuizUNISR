@@ -6,12 +6,13 @@ import {
   getCourse, getMacroAreas, getTopics, getQuestions,
   recordQuizAnswers, submitReport,
   getUnseenQuestions, countUnseenQuestions, markQuestionsSeen,
+  getWrongQuestions, countWrongQuestions,
 } from '@/lib/db';
 import { PageShell, Card, Spinner, Checkbox, ProgressBar, Modal } from '@/components/ui';
 import type { Course, MacroArea, Topic, Question } from '@/types';
 
 type Phase = 'setup' | 'quiz' | 'results';
-type QuizMode = 'all' | 'unseen';
+type QuizMode = 'all' | 'unseen' | 'wrong';
 
 // Shuffle options for a question respecting shuffle_options flag
 function prepareQuestion(q: Question): Question & { _sopts: string[]; _scorrect: number[]; _shuffled: boolean } {
@@ -48,6 +49,10 @@ export default function QuizPage() {
   // Unseen stats
   const [unseenCount, setUnseenCount] = useState<{ unseen: number; total: number } | null>(null);
 
+  // Wrong questions stats
+  const [wrongCount, setWrongCount] = useState<number>(0);
+  const [wrongCountMap, setWrongCountMap] = useState<Record<string, number>>({});
+
   // Setup
   const [selAreas, setSelAreas] = useState<string[]>([]);
   const [selTopics, setSelTopics] = useState<string[]>([]);
@@ -76,6 +81,8 @@ export default function QuizPage() {
     setCourse(c); setAreas(a); setTopics(t); setAllQs(q);
     const uc = await countUnseenQuestions(user.id, courseId);
     setUnseenCount(uc);
+    const wc = await countWrongQuestions(user.id, courseId);
+    setWrongCount(wc);
     setFetching(false);
   }, [courseId, user]);
 
@@ -97,20 +104,29 @@ export default function QuizPage() {
   const pool = allQs.filter(q =>
     selAreas.includes(q.macro_area_id) && (selTopics.length === 0 || selTopics.includes(q.topic_id))
   );
-  const maxQ = Math.min(pool.length, 50);
+  const maxQ = mode === 'wrong' ? Math.min(wrongCount, 50) : Math.min(pool.length, 50);
 
   const startQuiz = async () => {
-    if (!selAreas.length || !pool.length || !user) return;
+    if (!user) return;
     let picked: Question[];
-    if (mode === 'unseen') {
+
+    if (mode === 'wrong') {
+      // Modalità ripasso errori: ignora selezione aree, prende le più sbagliate
+      const { questions, wrongCountMap: wcm } = await getWrongQuestions(user.id, courseId, count);
+      setWrongCountMap(wcm);
+      picked = questions.slice(0, count);
+    } else if (mode === 'unseen') {
+      if (!selAreas.length || !pool.length) return;
       const unseen = await getUnseenQuestions(user.id, courseId, {
         macroAreaIds: selAreas,
         topicIds: selTopics.length > 0 ? selTopics : undefined,
       });
       picked = [...unseen].sort(() => Math.random() - 0.5).slice(0, count);
     } else {
+      if (!selAreas.length || !pool.length) return;
       picked = [...pool].sort(() => Math.random() - 0.5).slice(0, count);
     }
+
     if (!picked.length) return;
     setQuizQs(picked); setCur(0); setSel([]); setAnswered(false); setLog([]); setPhase('quiz');
   };
@@ -122,6 +138,11 @@ export default function QuizPage() {
       ? `${unseenCount.unseen} non viste su ${unseenCount.total} totali`
       : null;
 
+    const isWrongMode = mode === 'wrong';
+    const canStart = isWrongMode
+      ? wrongCount > 0
+      : selAreas.length > 0 && pool.length > 0 && !(mode === 'unseen' && unseenCount?.unseen === 0);
+
     return (
       <PageShell courseName={course.name}>
         <div className="max-w-xl mx-auto px-4 space-y-4">
@@ -132,10 +153,10 @@ export default function QuizPage() {
             <h2 className="text-xl font-bold text-[rgb(32,44,71)]">Configura esercitazione</h2>
           </div>
 
-          {/* Mode selector */}
+          {/* Mode selector — ora 3 pulsanti */}
           <Card>
             <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">1 · Modalità</h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               <button onClick={() => setMode('all')}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'all' ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
                 <div className="font-semibold text-sm text-[rgb(32,44,71)]">📚 Tutte le domande</div>
@@ -148,10 +169,17 @@ export default function QuizPage() {
                   {unseenCount ? `${unseenCount.unseen} domande disponibili` : 'Solo domande nuove'}
                 </div>
               </button>
+              <button onClick={() => setMode('wrong')}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'wrong' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-red-200'}`}>
+                <div className="font-semibold text-sm text-red-700">🔁 Ripassa gli errori</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {wrongCount > 0 ? `${wrongCount} domande sbagliate in passato` : 'Nessun errore registrato ancora'}
+                </div>
+              </button>
             </div>
 
-            {/* Unseen progress bar */}
-            {unseenCount && unseenCount.total > 0 && (
+            {/* Barra progresso per modalità non viste */}
+            {mode === 'unseen' && unseenCount && unseenCount.total > 0 && (
               <div className="mt-4">
                 <div className="flex justify-between text-xs text-gray-500 mb-1.5">
                   <span>Progresso domande</span>
@@ -179,66 +207,88 @@ export default function QuizPage() {
                 🎉 Hai visto tutte le domande disponibili! Passa alla modalità "Tutte" per ripassare.
               </div>
             )}
+
+            {/* Riepilogo modalità errori */}
+            {mode === 'wrong' && wrongCount === 0 && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 text-center">
+                Non hai ancora sbagliato domande registrate. Fai prima una sessione di esercitazione!
+              </div>
+            )}
+            {mode === 'wrong' && wrongCount > 0 && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700">
+                Le domande verranno ordinate dalla <strong>più sbagliata alla meno sbagliata</strong>. Potrai scegliere quante farne sotto.
+              </div>
+            )}
           </Card>
 
-          {/* Areas */}
-          <Card>
-            <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">2 · Scegli le macro-aree</h3>
-            <div className="space-y-2">
-              {areas.map(a => {
-                const n = allQs.filter(q => q.macro_area_id === a.id).length;
-                const on = selAreas.includes(a.id);
-                return (
-                  <button key={a.id} onClick={() => toggleArea(a.id)}
-                    className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${on ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
-                    <span className={`font-medium text-sm ${on ? 'text-[rgb(32,44,71)]' : 'text-gray-700'}`}>{a.name}</span>
-                    <div className="flex items-center gap-2"><span className="text-xs text-gray-400">{n} domande</span><Checkbox checked={on} /></div>
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
+          {/* Selezione aree e topic — NASCOSTA in modalità errori */}
+          {!isWrongMode && (
+            <>
+              <Card>
+                <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">2 · Scegli le macro-aree</h3>
+                <div className="space-y-2">
+                  {areas.map(a => {
+                    const n = allQs.filter(q => q.macro_area_id === a.id).length;
+                    const on = selAreas.includes(a.id);
+                    return (
+                      <button key={a.id} onClick={() => toggleArea(a.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all text-left ${on ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+                        <span className={`font-medium text-sm ${on ? 'text-[rgb(32,44,71)]' : 'text-gray-700'}`}>{a.name}</span>
+                        <div className="flex items-center gap-2"><span className="text-xs text-gray-400">{n} domande</span><Checkbox checked={on} /></div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
 
-          {/* Topics */}
-          {availTopics.length > 0 && (
+              {availTopics.length > 0 && (
+                <Card>
+                  <h3 className="font-semibold text-[rgb(32,44,71)] mb-1 text-sm">3 · Filtra per argomento <span className="font-normal text-gray-400">(opzionale)</span></h3>
+                  <p className="text-xs text-gray-400 mb-3">Se non selezioni nulla vengono inclusi tutti.</p>
+                  <div className="space-y-1.5">
+                    {availTopics.map(t => {
+                      const n = allQs.filter(q => q.topic_id === t.id).length;
+                      const on = selTopics.includes(t.id);
+                      return (
+                        <button key={t.id} onClick={() => toggleTopic(t.id)}
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all text-left ${on ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+                          <span className={`text-sm ${on ? 'font-medium text-[rgb(32,44,71)]' : 'text-gray-600'}`}>{t.name}</span>
+                          <div className="flex items-center gap-2"><span className="text-xs text-gray-400">{n}</span><Checkbox checked={on} small /></div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+
+          {/* Numero domande */}
+          {(!isWrongMode ? (selAreas.length > 0) : wrongCount > 0) && (
             <Card>
-              <h3 className="font-semibold text-[rgb(32,44,71)] mb-1 text-sm">3 · Filtra per argomento <span className="font-normal text-gray-400">(opzionale)</span></h3>
-              <p className="text-xs text-gray-400 mb-3">Se non selezioni nulla vengono inclusi tutti.</p>
-              <div className="space-y-1.5">
-                {availTopics.map(t => {
-                  const n = allQs.filter(q => q.topic_id === t.id).length;
-                  const on = selTopics.includes(t.id);
-                  return (
-                    <button key={t.id} onClick={() => toggleTopic(t.id)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all text-left ${on ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
-                      <span className={`text-sm ${on ? 'font-medium text-[rgb(32,44,71)]' : 'text-gray-600'}`}>{t.name}</span>
-                      <div className="flex items-center gap-2"><span className="text-xs text-gray-400">{n}</span><Checkbox checked={on} small /></div>
-                    </button>
-                  );
-                })}
+              <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">
+                {isWrongMode ? '2' : availTopics.length > 0 ? '4' : '3'} · Numero di domande:
+                <span className={`ml-1 ${isWrongMode ? 'text-red-500' : 'text-[rgb(99,130,201)]'}`}>{Math.min(count, maxQ || 5)}</span>
+              </h3>
+              <input type="range" min={5} max={maxQ || 5} value={Math.min(count, maxQ || 5)}
+                onChange={e => setCount(+e.target.value)}
+                className={`w-full ${isWrongMode ? 'accent-red-500' : 'accent-[rgb(32,44,71)]'}`} />
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>5</span>
+                <span>Disponibili: {isWrongMode ? wrongCount : mode === 'unseen' ? (unseenCount?.unseen ?? pool.length) : pool.length}</span>
+                <span>{maxQ || 5}</span>
               </div>
             </Card>
           )}
 
-          {/* Count */}
-          <Card>
-            <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">
-              {availTopics.length > 0 ? '4' : '3'} · Numero di domande:
-              <span className="text-[rgb(99,130,201)] ml-1">{Math.min(count, maxQ || 5)}</span>
-            </h3>
-            <input type="range" min={5} max={maxQ || 5} value={Math.min(count, maxQ || 5)}
-              onChange={e => setCount(+e.target.value)} className="w-full accent-[rgb(32,44,71)]" />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>5</span>
-              <span>Disponibili: {mode === 'unseen' ? (unseenCount?.unseen ?? pool.length) : pool.length}</span>
-              <span>{maxQ || 5}</span>
-            </div>
-          </Card>
-
           <button onClick={startQuiz}
-            disabled={!selAreas.length || !pool.length || (mode === 'unseen' && unseenCount?.unseen === 0)}
-            className="btn-primary w-full py-3 text-base disabled:opacity-40">
-            Inizia esercitazione →
+            disabled={!canStart}
+            className={`w-full py-3 text-base rounded-xl font-semibold transition-all disabled:opacity-40 ${
+              isWrongMode
+                ? 'bg-red-500 hover:bg-red-600 text-white'
+                : 'btn-primary'
+            }`}>
+            {isWrongMode ? '🔁 Inizia ripasso errori →' : 'Inizia esercitazione →'}
           </button>
         </div>
       </PageShell>
@@ -251,6 +301,7 @@ export default function QuizPage() {
     const displayOpts: string[] = (rawQ as any)._sopts;
     const shuffledCorrect: number[] = (rawQ as any)._scorrect;
     const allowMultiple = course.exam_rules.allow_multiple_correct;
+    const timesWrong = mode === 'wrong' ? (wrongCountMap[rawQ.id] ?? 0) : 0;
 
     const pick = (idx: number) => {
       if (answered) return;
@@ -272,13 +323,13 @@ export default function QuizPage() {
       setLog(newLog);
 
       if (cur === quizQs.length - 1) {
-        // End of quiz — save stats and mark as seen
         if (user) {
           await recordQuizAnswers(user.id, courseId, newLog);
           await markQuestionsSeen(user.id, courseId, quizQs.map(q => q.id));
-          // refresh unseen count
           const uc = await countUnseenQuestions(user.id, courseId);
           setUnseenCount(uc);
+          const wc = await countWrongQuestions(user.id, courseId);
+          setWrongCount(wc);
         }
         setPhase('results');
       } else {
@@ -295,10 +346,24 @@ export default function QuizPage() {
             </div>
             <span className="text-sm text-gray-400 tabular-nums flex-shrink-0">{cur + 1}/{quizQs.length}</span>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full font-medium">{rawQ.macro_area_name}</span>
-            <span className="text-xs text-gray-400">{rawQ.topic_name}</span>
-          </div>
+
+          {/* Badge modalità errori con contatore sbagli */}
+          {mode === 'wrong' && timesWrong > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs bg-red-100 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium">
+                🔁 Sbagliata {timesWrong} {timesWrong === 1 ? 'volta' : 'volte'}
+              </span>
+              <span className="text-xs text-gray-400">{rawQ.macro_area_name}</span>
+            </div>
+          )}
+
+          {mode !== 'wrong' && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full font-medium">{rawQ.macro_area_name}</span>
+              <span className="text-xs text-gray-400">{rawQ.topic_name}</span>
+            </div>
+          )}
+
           <Card><p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{rawQ.question_text}</p></Card>
           {allowMultiple && !answered && <p className="text-xs text-amber-600 font-medium">⚠️ Possono esserci più risposte corrette</p>}
           <div className="space-y-2">
@@ -335,50 +400,34 @@ export default function QuizPage() {
                 <button onClick={next} className="btn-primary flex-1">
                   {cur === quizQs.length - 1 ? 'Vedi risultati' : 'Prossima →'}
                 </button>
-                <button onClick={() => { setShowReport(true); setReportNote(''); setReportSent(false); }}
-                  title="Segnala un problema"
-                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border-2 border-amber-200 bg-amber-50 text-amber-700 text-xs font-medium hover:bg-amber-100 transition-colors flex-shrink-0">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                  </svg>
-                  Segnala
-                </button>
+                <button onClick={() => setShowReport(true)} className="btn-secondary px-3" title="Segnala errore">🚩</button>
               </div>
             </>
           )}
 
           {showReport && (
-            <Modal title="Segnala un problema" onClose={() => setShowReport(false)}>
+            <Modal title="Segnala un problema" onClose={() => { setShowReport(false); setReportNote(''); setReportSent(false); }}>
               {reportSent ? (
                 <div className="text-center py-4">
-                  <div className="text-4xl mb-3">✅</div>
-                  <h3 className="font-semibold text-[rgb(32,44,71)] mb-2">Segnalazione inviata!</h3>
-                  <p className="text-gray-500 text-sm mb-4">Grazie. Gli amministratori verificheranno la domanda.</p>
-                  <button onClick={() => setShowReport(false)} className="btn-primary px-8">Chiudi</button>
+                  <div className="text-3xl mb-2">✅</div>
+                  <p className="font-medium text-emerald-700">Segnalazione inviata!</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="p-3 bg-gray-50 rounded-xl text-sm text-gray-700 leading-relaxed">
-                    <p className="font-medium text-[rgb(32,44,71)] mb-1">Domanda segnalata:</p>
-                    <p className="text-xs">{rawQ.question_text}</p>
-                  </div>
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <p><span className="font-medium">Risposta selezionata:</span> {sel.length > 0 ? displayOpts[sel[0]] : 'Nessuna'}</p>
-                    <p><span className="font-medium">Risposta indicata corretta:</span> {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Note <span className="text-gray-400 font-normal">(opzionale)</span></label>
-                    <textarea value={reportNote} onChange={e => setReportNote(e.target.value)}
-                      className="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)] resize-none" rows={3}
-                      placeholder="Es. La risposta corretta dovrebbe essere B perché…"/>
-                  </div>
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600">Descrivi il problema con questa domanda (opzionale):</p>
+                  <textarea
+                    className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"
+                    rows={3} value={reportNote} onChange={e => setReportNote(e.target.value)}
+                    placeholder="Es: la risposta corretta mi sembra sbagliata…"
+                  />
                   <button onClick={async () => {
                     if (!user) return;
+                    const correct = shuffledCorrect.map(i => displayOpts[i]).join(', ');
+                    const selected = sel.map(i => displayOpts[i]).join(', ');
                     await submitReport({
                       question_id: rawQ.id, user_id: user.id,
                       question_text: rawQ.question_text,
-                      selected_answer: sel.length > 0 ? displayOpts[sel[0]] : 'Nessuna',
-                      correct_answer: shuffledCorrect.map(i => displayOpts[i]).join(', '),
+                      selected_answer: selected, correct_answer: correct,
                       note: reportNote,
                     });
                     setReportSent(true);
@@ -393,14 +442,17 @@ export default function QuizPage() {
   }
 
   // ── RESULTS PHASE ─────────────────────────────────────────────────────────────
-  const correct = log.filter(l => l.correct).length;
+  const correct = log.filter(e => e.correct).length;
   const pct = Math.round((correct / quizQs.length) * 100);
+
   return (
     <PageShell courseName={course.name}>
-      <div className="max-w-lg mx-auto px-4">
-        <Card className="text-center">
-          <div className="text-5xl mb-3">{pct >= 70 ? '🎉' : pct >= 50 ? '👍' : '📚'}</div>
-          <h2 className="text-2xl font-bold text-[rgb(32,44,71)]">Esercitazione completata!</h2>
+      <div className="max-w-xl mx-auto px-4">
+        <Card className="text-center space-y-2">
+          <div className="text-5xl mb-2">{pct === 100 ? '🏆' : pct >= 70 ? '🎉' : pct >= 50 ? '👍' : '📚'}</div>
+          <h2 className="text-2xl font-bold text-[rgb(32,44,71)]">
+            {mode === 'wrong' ? 'Ripasso completato!' : 'Esercitazione completata!'}
+          </h2>
           <div className="mt-4 p-5 bg-[rgb(240,242,247)] rounded-2xl">
             <div className="text-5xl font-bold text-[rgb(32,44,71)]">{correct}<span className="text-2xl text-gray-400">/{quizQs.length}</span></div>
             <div className="text-gray-500 text-sm mt-1">{pct}% di risposte corrette</div>
@@ -409,13 +461,23 @@ export default function QuizPage() {
             <div className="p-3 bg-emerald-50 rounded-xl"><div className="text-2xl font-bold text-emerald-600">{correct}</div><div className="text-xs text-emerald-600 mt-0.5">Corrette</div></div>
             <div className="p-3 bg-red-50 rounded-xl"><div className="text-2xl font-bold text-red-500">{quizQs.length - correct}</div><div className="text-xs text-red-500 mt-0.5">Errate</div></div>
           </div>
-          {unseenCount && (
+
+          {mode === 'wrong' && wrongCount > 0 && (
+            <div className="mt-4 p-3 bg-red-50 rounded-xl text-sm text-red-700">
+              Hai ancora <span className="font-semibold">{wrongCount}</span> domande da ripassare nel tuo archivio errori.
+            </div>
+          )}
+
+          {unseenCount && mode !== 'wrong' && (
             <div className="mt-4 p-3 bg-blue-50 rounded-xl text-sm text-blue-700">
               <span className="font-semibold">{unseenCount.unseen}</span> domande ancora da vedere su {unseenCount.total} totali
             </div>
           )}
+
           <div className="flex gap-3 mt-5">
-            <button onClick={() => setPhase('setup')} className="btn-secondary flex-1 text-sm">Altra sessione</button>
+            <button onClick={() => setPhase('setup')} className="btn-secondary flex-1 text-sm">
+              {mode === 'wrong' ? 'Altro ripasso' : 'Altra sessione'}
+            </button>
             <button onClick={() => router.push(`/course/${courseId}`)} className="btn-primary flex-1 text-sm">Dashboard</button>
           </div>
         </Card>
