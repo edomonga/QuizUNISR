@@ -24,27 +24,28 @@ export async function signUp(email: string, password: string, displayName: strin
 
   if (error) return { error: error.message };
 
+  // Create profile row (trigger also does this but belt-and-suspenders)
   if (data.user) {
     await supabase.from('profiles').upsert({
       id: data.user.id,
       email,
       display_name: displayName,
       is_admin: false,
-      is_active: false,
+      is_active: false, // admin must activate
     });
   }
 
   return { error: null };
 }
 
-/** Sign in – restituisce anche must_change_password */
+/** Sign in with email + password */
 export async function signIn(email: string, password: string): Promise<{ user: AuthUser | null; error: string | null }> {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { user: null, error: 'Email o password non corretti.' };
 
   const profile = await getProfile(data.user.id);
   if (!profile) return { user: null, error: 'Profilo non trovato. Contatta un amministratore.' };
-  if (!profile.is_active) return { user: null, error: 'Account non ancora attivato. Contatta un amministratore.' };
+  if (!profile.is_active) return { user: null, error: 'Account non ancora attivato. Controlla la tua email oppure contatta un amministratore.' };
 
   return { user: profile, error: null };
 }
@@ -54,7 +55,7 @@ export async function signOut() {
   await supabase.auth.signOut();
 }
 
-/** Fetch profile – ora include must_change_password */
+/** Fetch profile by user id */
 export async function getProfile(userId: string): Promise<AuthUser | null> {
   const { data } = await supabase
     .from('profiles')
