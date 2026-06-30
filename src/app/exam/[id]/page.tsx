@@ -317,7 +317,8 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
                   : answers[i]?.length > 0 ? 'q-dot q-answered'
                   : 'q-dot q-unanswered';
                 return (
-                  <button key={i} className={cls} onClick={() => setCur(i)}>{i + 1}</button>
+                  <button key={i} className={`${cls} ${rule.no_navigation ? 'cursor-default pointer-events-none' : ''}`}
+                    onClick={() => { if (!rule.no_navigation) setCur(i); }}>{i + 1}</button>
                 );
               })}
             </div>
