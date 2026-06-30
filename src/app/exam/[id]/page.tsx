@@ -297,8 +297,8 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
   return (
     <div className="flex h-screen overflow-hidden flex-col">
       <nav className="bg-[rgb(32,44,71)] text-white h-14 px-4 flex items-center justify-between flex-shrink-0">
-        <span className="font-bold text-base">🩺 UniQuiz · {course.name}</span>
-        <div className="flex items-center gap-3">
+        <span className="font-bold text-base truncate min-w-0 flex-1">🩺 UniQuiz · {course.name}</span>
+        <div className="flex items-center gap-3 flex-shrink-0">
           <span className={`text-lg font-black tabular-nums ${warn ? 'text-red-400' : 'text-white'}`}>{fmt(timeLeft)}</span>
           <button onClick={submit} className="bg-white text-[rgb(32,44,71)] rounded-xl px-3 py-1.5 text-xs font-bold hover:bg-blue-50">
             Consegna
@@ -685,11 +685,11 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
     return (
       <div className="flex h-screen flex-col overflow-hidden">
         <nav className="bg-[rgb(32,44,71)] text-white h-14 px-4 flex items-center justify-between flex-shrink-0">
-          <div>
-            <span className="font-bold text-base">🩺 {course.name}</span>
-            <span className="ml-2 text-xs bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full font-semibold">PRESELEZIONE</span>
+          <div className="min-w-0 flex-1 flex items-center gap-2">
+            <span className="font-bold text-base truncate">🩺 {course.name}</span>
+            <span className="text-xs bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">PRESELEZIONE</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-shrink-0">
             <span className={`text-lg font-black tabular-nums ${warn ? 'text-red-400' : 'text-white'}`}>{fmt(preTimeLeft)}</span>
             <button onClick={submitPre} className="bg-white text-[rgb(32,44,71)] rounded-xl px-3 py-1.5 text-xs font-bold">Consegna</button>
           </div>
@@ -764,8 +764,8 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
   return (
     <div className="flex h-screen overflow-hidden flex-col">
       <nav className="bg-[rgb(32,44,71)] text-white h-14 px-4 flex items-center justify-between flex-shrink-0">
-        <span className="font-bold text-base">🩺 {course.name} — Esame</span>
-        <div className="flex items-center gap-3">
+        <span className="font-bold text-base truncate min-w-0 flex-1">🩺 {course.name} — Esame</span>
+        <div className="flex items-center gap-3 flex-shrink-0">
           <span className={`text-lg font-black tabular-nums ${warn ? 'text-red-400' : 'text-white'}`}>{fmt(mainTimeLeft)}</span>
           <button onClick={submitMain} className="bg-white text-[rgb(32,44,71)] rounded-xl px-3 py-1.5 text-xs font-bold hover:bg-blue-50">Consegna</button>
         </div>
