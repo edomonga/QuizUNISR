@@ -82,7 +82,7 @@ body {
          cursor-pointer transition-all duration-150;
 }
 .q-unanswered { @apply bg-gray-200 text-gray-600 hover:bg-gray-300; }
-.q-answered   { @apply bg-[rgb(32,44,71)] text-white; }
+.q-answered   { @apply bg-[rgb(64,89,145)] text-white border border-white/20 hover:bg-[rgb(78,105,165)]; }
 .q-current    { @apply bg-[rgb(99,130,201)] text-white ring-2 ring-white ring-offset-1 ring-offset-[rgb(32,44,71)]; }
 
 /* ── Progress bar ── */
