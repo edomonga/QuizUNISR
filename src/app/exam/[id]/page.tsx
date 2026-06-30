@@ -279,7 +279,6 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
               })}
             </div>
           )}
-
           <button onClick={onEnd} className="btn-primary w-full">Torna alla dashboard</button>
         </div>
       </PageShell>
