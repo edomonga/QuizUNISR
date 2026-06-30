@@ -254,18 +254,21 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
                         {q.shuffled_options.map((opt, idx) => {
                           const isCorr = q.shuffled_correct.includes(idx);
                           const isSel = a.includes(idx);
-                          let rowCls = 'flex items-start gap-2 text-sm px-3 py-2 rounded-lg ';
-                          if (isCorr) rowCls += 'bg-emerald-50 text-emerald-800 font-medium';
-                          else if (isSel && !isCorr) rowCls += 'bg-red-50 text-red-800';
-                          else rowCls += 'text-gray-500';
+                          let rowCls = 'flex items-start gap-2.5 text-sm px-3 py-2.5 rounded-lg border-2 transition-colors ';
+                          if (isCorr && isSel) rowCls += 'bg-emerald-100 border-emerald-500 text-emerald-900 font-semibold';
+                          else if (isCorr && !isSel) rowCls += 'bg-emerald-50 border-emerald-200 text-emerald-700';
+                          else if (!isCorr && isSel) rowCls += 'bg-red-100 border-red-500 text-red-900 font-semibold';
+                          else rowCls += 'bg-white border-gray-200 text-gray-400';
                           return (
                             <div key={idx} className={rowCls}>
-                              <span className="flex-shrink-0 w-5 h-5 rounded border bg-white text-xs font-bold flex items-center justify-center">
+                              <span className={`flex-shrink-0 w-5 h-5 rounded border-2 text-xs font-bold flex items-center justify-center ${isSel ? 'bg-[rgb(32,44,71)] border-[rgb(32,44,71)] text-white' : 'bg-white border-gray-300 text-gray-500'}`}>
                                 {String.fromCharCode(65 + idx)}
                               </span>
                               <span className="leading-snug flex-1">{opt}</span>
-                              {isCorr && <span className="flex-shrink-0 text-emerald-600 font-bold">✓</span>}
-                              {isSel && !isCorr && <span className="flex-shrink-0 text-red-500 font-bold">✗</span>}
+                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                {isSel && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[rgb(32,44,71)] text-white whitespace-nowrap">Tua risposta</span>}
+                                {isCorr && <span className="text-emerald-600 font-bold text-xs whitespace-nowrap">✓ Corretta</span>}
+                              </div>
                             </div>
                           );
                         })}
@@ -659,7 +662,10 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
                       </div>
                       {q.explanation && (
                         <p className="mt-2 text-xs text-gray-500 italic">{q.explanation}</p>
-                      )};
+                      )}
+                    </div>
+                  </div>
+                );
               })}
             </div>
           )}
@@ -837,4 +843,3 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
     </div>
   );
 }
-
