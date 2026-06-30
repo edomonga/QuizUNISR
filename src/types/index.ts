@@ -6,6 +6,7 @@ export interface Profile {
   display_name: string;
   is_admin: boolean;
   is_active: boolean;
+  must_change_password?: boolean;
   created_at: string;
 }
 
@@ -18,7 +19,6 @@ export interface Course {
   text_color: string;
   border_color: string;
   is_available: boolean;
-  year: number | null;    // ← anno di corso (1-6), null = non assegnato
   exam_rules: ExamRules;
   created_at: string;
   updated_at: string;
@@ -37,10 +37,10 @@ export interface ExamRules {
   // Two-phase exam support (e.g. Microbiologia)
   exam_type?: 'standard' | 'two_phase';
   preselection?: {
-    questions: number;
-    max_errors: number;
-    time_limit_seconds: number;
-    distribution: Record<string, number>;
+    questions: number;           // how many preselection questions
+    max_errors: number;          // max errors allowed to pass
+    time_limit_seconds: number;  // time for preselection phase
+    distribution: Record<string, number>; // macro_area_id -> count
   };
 }
 
@@ -70,7 +70,7 @@ export interface Question {
   correct_answers: number[];
   explanation?: string;
   is_active: boolean;
-  shuffle_options: boolean;
+  shuffle_options: boolean;  // NEW: whether to shuffle options for this question
   created_at: string;
   updated_at: string;
   // Joined fields (not in DB)
@@ -134,5 +134,5 @@ export interface AuthUser {
   display_name: string;
   is_admin: boolean;
   is_active: boolean;
-  must_change_password?: boolean;   // ← fix errore change-password/page.tsx
+  must_change_password?: boolean;
 }
