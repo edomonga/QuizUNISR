@@ -424,7 +424,7 @@ export default function QuizPage() {
                 <div className="space-y-3">
                   <p className="text-sm text-gray-600">Descrivi il problema con questa domanda (opzionale):</p>
                   <textarea
-                    className="w-full border border-gray-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"
+                    className="w-full border border-gray-200 rounded-xl p-3 text-base resize-none focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"
                     rows={3} value={reportNote} onChange={e => setReportNote(e.target.value)}
                     placeholder="Es: la risposta corretta mi sembra sbagliata…"
                   />
