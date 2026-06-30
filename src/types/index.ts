@@ -19,6 +19,7 @@ export interface Course {
   text_color: string;
   border_color: string;
   is_available: boolean;
+  year: number | null;
   exam_rules: ExamRules;
   created_at: string;
   updated_at: string;
