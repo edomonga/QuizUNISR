@@ -32,6 +32,7 @@ export interface ExamRules {
   omitted_score: number;
   options_per_question: number;
   allow_multiple_correct: boolean;
+  no_navigation?: boolean;
   distribution: Record<string, number>;
   // Two-phase exam support (e.g. Microbiologia)
   exam_type?: 'standard' | 'two_phase';
