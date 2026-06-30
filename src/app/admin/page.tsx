@@ -1337,7 +1337,7 @@ function BulkDeleteModal({ courseName, count, onClose, onConfirm }: {
             value={text}
             onChange={e => setText(e.target.value)}
             placeholder="Scrivi la frase di conferma…"
-            className={`w-full border-2 rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors ${
+            className={`w-full border-2 rounded-xl px-4 py-2.5 text-base focus:outline-none transition-colors ${
               text.length > 0
                 ? isValid
                   ? 'border-emerald-400 focus:ring-2 focus:ring-emerald-300'
