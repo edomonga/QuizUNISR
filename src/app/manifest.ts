@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'UniQuiz',
     short_name: 'UniQuiz',
     description: 'Piattaforma di preparazione esami',
-    start_url: '/',
+    start_url: '/login',
     display: 'standalone',
     background_color: '#F0F2F7',
     theme_color: '#202C47',
