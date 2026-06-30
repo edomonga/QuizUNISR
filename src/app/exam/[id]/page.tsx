@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCourse, pickExamQuestions, recordQuizAnswers, saveExamResult } from '@/lib/db';
-import { PageShell, Card, Spinner } from '@/components/ui';
+import { PageShell, Card, Spinner, Modal } from '@/components/ui';
 import type { Course, Question, ExamAnswer } from '@/types';
 
 const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
@@ -69,7 +69,9 @@ export default function ExamPage() {
               ['✅', `+${course.exam_rules.correct_score} risposta corretta`],
               ['❌', `−${course.exam_rules.wrong_penalty} risposta errata`],
               ['⬜', `0 risposta omessa`],
-              ['🔀', 'Navigazione libera avanti e indietro'],
+              (course.exam_rules.no_navigation
+                ? ['🔒', 'Navigazione bloccata: non si può tornare indietro, conferma richiesta per ogni domanda']
+                : ['🔀', 'Navigazione libera avanti e indietro']),
               ['🎲', 'Le opzioni vengono mescolate ad ogni esame'],
               ...(course.exam_rules.allow_multiple_correct ? [['⚠️', 'Alcune domande potrebbero avere più risposte corrette']] : []),
             ].map(([icon, text]) => (
@@ -120,6 +122,7 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
   const [timeLeft, setTimeLeft] = useState(rule.time_limit_seconds);
   const [submitted, setSubmitted] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<{
     correct: number; wrong: number; omitted: number; raw: number; scoreIn30: number;
@@ -287,6 +290,7 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
   const q = qs[cur];
   const warn = timeLeft < 300;
   const answeredCount = answers.filter(a => a.length > 0).length;
+  const goNext = () => { if (cur === qs.length - 1) submit(); else setCur(c => c + 1); };
 
   return (
     <div className="flex h-screen overflow-hidden flex-col">
@@ -377,15 +381,33 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
             </div>
 
             <div className="flex gap-2 pt-1">
-              <button onClick={() => setCur(c => Math.max(0, c - 1))} disabled={cur === 0}
-                className="btn-secondary flex-1 disabled:opacity-30">
-                ← Precedente
-              </button>
-              <button onClick={() => setCur(c => Math.min(qs.length - 1, c + 1))} disabled={cur === qs.length - 1}
-                className="btn-primary flex-1 disabled:opacity-30">
-                Successiva →
+              {!rule.no_navigation && (
+                <button onClick={() => setCur(c => Math.max(0, c - 1))} disabled={cur === 0}
+                  className="btn-secondary flex-1 disabled:opacity-30">
+                  ← Precedente
+                </button>
+              )}
+              <button onClick={() => rule.no_navigation ? setConfirmAction(() => goNext) : goNext()}
+                className="btn-primary flex-1">
+                {cur === qs.length - 1 ? "Termina l'esame" : 'Successiva →'}
               </button>
             </div>
+
+            {confirmAction && (
+              <Modal title="Conferma" onClose={() => setConfirmAction(null)}>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    {cur === qs.length - 1
+                      ? "Stai per consegnare l'esame. Una volta confermato non potrai più modificare le risposte. Procedere?"
+                      : 'Questo esame non permette di tornare indietro: una volta confermato non potrai più modificare questa risposta. Procedere?'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmAction(null)} className="btn-secondary flex-1">Annulla</button>
+                    <button onClick={() => { const fn = confirmAction; setConfirmAction(null); fn?.(); }} className="btn-primary flex-1">Conferma</button>
+                  </div>
+                </div>
+              </Modal>
+            )}
           </div>
         </div>
       </div>
@@ -421,6 +443,7 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
   const [mainLoading, setMainLoading] = useState(false);
   const [mainResults, setMainResults] = useState<{ correct: number; wrong: number; omitted: number; raw: number; scoreIn30: number } | null>(null);
   const [showReview, setShowReview] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const startRef = useRef(Date.now());
 
   // Load preselezione questions using preselection.distribution if set
@@ -616,24 +639,28 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
                         {q.shuffled_options.map((opt, idx) => {
                           const isCorr = q.shuffled_correct.includes(idx);
                           const isSel = a.includes(idx);
-                          let rowCls = 'flex items-start gap-2 text-sm px-3 py-2 rounded-lg ';
-                          if (isCorr) rowCls += 'bg-emerald-50 text-emerald-800 font-medium';
-                          else if (isSel && !isCorr) rowCls += 'bg-red-50 text-red-800';
-                          else rowCls += 'text-gray-500';
+                          let rowCls = 'flex items-start gap-2.5 text-sm px-3 py-2.5 rounded-lg border-2 transition-colors ';
+                          if (isCorr && isSel) rowCls += 'bg-emerald-100 border-emerald-500 text-emerald-900 font-semibold';
+                          else if (isCorr && !isSel) rowCls += 'bg-emerald-50 border-emerald-200 text-emerald-700';
+                          else if (!isCorr && isSel) rowCls += 'bg-red-100 border-red-500 text-red-900 font-semibold';
+                          else rowCls += 'bg-white border-gray-200 text-gray-400';
                           return (
                             <div key={idx} className={rowCls}>
-                              <span className="flex-shrink-0 w-5 h-5 rounded border bg-white text-xs font-bold flex items-center justify-center">{String.fromCharCode(65 + idx)}</span>
+                              <span className={`flex-shrink-0 w-5 h-5 rounded border-2 text-xs font-bold flex items-center justify-center ${isSel ? 'bg-[rgb(32,44,71)] border-[rgb(32,44,71)] text-white' : 'bg-white border-gray-300 text-gray-500'}`}>
+                                {String.fromCharCode(65 + idx)}
+                              </span>
                               <span className="leading-snug flex-1">{opt}</span>
-                              {isCorr && <span className="flex-shrink-0 text-emerald-600 font-bold">✓</span>}
-                              {isSel && !isCorr && <span className="flex-shrink-0 text-red-500 font-bold">✗</span>}
+                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                {isSel && <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[rgb(32,44,71)] text-white whitespace-nowrap">Tua risposta</span>}
+                                {isCorr && <span className="text-emerald-600 font-bold text-xs whitespace-nowrap">✓ Corretta</span>}
+                              </div>
                             </div>
                           );
                         })}
                       </div>
-                      {q.explanation && <p className="mt-2 text-xs text-gray-500 italic">{q.explanation}</p>}
-                    </div>
-                  </div>
-                );
+                      {q.explanation && (
+                        <p className="mt-2 text-xs text-gray-500 italic">{q.explanation}</p>
+                      )};
               })}
             </div>
           )}
@@ -689,12 +716,30 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
               ))}
             </div>
             <div className="flex gap-2 pt-1">
-              <button onClick={() => setPreCur(c => Math.max(0, c - 1))} disabled={preCur === 0} className="btn-secondary flex-1 disabled:opacity-30">← Precedente</button>
+              {!rule.no_navigation && (
+                <button onClick={() => setPreCur(c => Math.max(0, c - 1))} disabled={preCur === 0} className="btn-secondary flex-1 disabled:opacity-30">← Precedente</button>
+              )}
               {preCur < preQs.length - 1
-                ? <button onClick={() => setPreCur(c => c + 1)} className="btn-primary flex-1">Successiva →</button>
-                : <button onClick={submitPre} className="btn-primary flex-1 bg-amber-500 hover:bg-amber-600">Consegna preselezione →</button>
+                ? <button onClick={() => rule.no_navigation ? setConfirmAction(() => () => setPreCur(c => c + 1)) : setPreCur(c => c + 1)} className="btn-primary flex-1">Successiva →</button>
+                : <button onClick={() => rule.no_navigation ? setConfirmAction(() => submitPre) : submitPre()} className="btn-primary flex-1 bg-amber-500 hover:bg-amber-600">Consegna preselezione →</button>
               }
             </div>
+
+            {confirmAction && (
+              <Modal title="Conferma" onClose={() => setConfirmAction(null)}>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    {preCur < preQs.length - 1
+                      ? 'Questo esame non permette di tornare indietro: una volta confermato non potrai più modificare questa risposta. Procedere?'
+                      : 'Stai per consegnare la preselezione. Procedere?'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmAction(null)} className="btn-secondary flex-1">Annulla</button>
+                    <button onClick={() => { const fn = confirmAction; setConfirmAction(null); fn?.(); }} className="btn-primary flex-1">Conferma</button>
+                  </div>
+                </div>
+              </Modal>
+            )}
           </div>
         </div>
       </div>
@@ -708,6 +753,7 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
   const q = mainQs[mainCur];
   const warn = mainTimeLeft < 300;
   const answered = mainAnswers[mainCur]?.length ?? 0;
+  const goNextMain = () => { if (mainCur === mainQs.length - 1) submitMain(); else setMainCur(c => c + 1); };
 
   return (
     <div className="flex h-screen overflow-hidden flex-col">
@@ -725,7 +771,10 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
             <div className="grid grid-cols-4 gap-1.5">
               {mainQs.map((_, i) => {
                 const cls = i === mainCur ? 'q-dot q-current' : (mainAnswers[i]?.length ?? 0) > 0 ? 'q-dot q-answered' : 'q-dot q-unanswered';
-                return <button key={i} className={cls} onClick={() => setMainCur(i)}>{i + 1}</button>;
+                return (
+                  <button key={i} className={`${cls} ${rule.no_navigation ? 'cursor-default pointer-events-none' : ''}`}
+                    onClick={() => { if (!rule.no_navigation) setMainCur(i); }}>{i + 1}</button>
+                );
               })}
             </div>
           </div>
@@ -760,9 +809,29 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
               ))}
             </div>
             <div className="flex gap-2 pt-1">
-              <button onClick={() => setMainCur(c => Math.max(0, c - 1))} disabled={mainCur === 0} className="btn-secondary flex-1 disabled:opacity-30">← Precedente</button>
-              <button onClick={() => setMainCur(c => Math.min(mainQs.length - 1, c + 1))} disabled={mainCur === mainQs.length - 1} className="btn-primary flex-1 disabled:opacity-30">Successiva →</button>
+              {!rule.no_navigation && (
+                <button onClick={() => setMainCur(c => Math.max(0, c - 1))} disabled={mainCur === 0} className="btn-secondary flex-1 disabled:opacity-30">← Precedente</button>
+              )}
+              <button onClick={() => rule.no_navigation ? setConfirmAction(() => goNextMain) : goNextMain()} className="btn-primary flex-1">
+                {mainCur === mainQs.length - 1 ? "Termina l'esame" : 'Successiva →'}
+              </button>
             </div>
+
+            {confirmAction && (
+              <Modal title="Conferma" onClose={() => setConfirmAction(null)}>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    {mainCur === mainQs.length - 1
+                      ? "Stai per consegnare l'esame. Una volta confermato non potrai più modificare le risposte. Procedere?"
+                      : 'Questo esame non permette di tornare indietro: una volta confermato non potrai più modificare questa risposta. Procedere?'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button onClick={() => setConfirmAction(null)} className="btn-secondary flex-1">Annulla</button>
+                    <button onClick={() => { const fn = confirmAction; setConfirmAction(null); fn?.(); }} className="btn-primary flex-1">Conferma</button>
+                  </div>
+                </div>
+              </Modal>
+            )}
           </div>
         </div>
       </div>
