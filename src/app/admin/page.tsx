@@ -635,6 +635,10 @@ function CourseModal({ initial, onClose, onSave }: {
             <label htmlFor="multi" className="text-sm text-gray-600 cursor-pointer">Ammetti risposte multiple corrette</label>
           </div>
           <div className="flex items-center gap-2 mt-2">
+            <input type="checkbox" id="nonav" checked={!!rule.no_navigation} onChange={e => setRule({ no_navigation: e.target.checked })} className="accent-[rgb(32,44,71)]" />
+            <label htmlFor="nonav" className="text-sm text-gray-600 cursor-pointer">Blocca la navigazione (vietato tornare indietro, conferma per ogni domanda)</label>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
             <input type="checkbox" id="twophase" checked={rule.exam_type === 'two_phase'} onChange={e => setRule({ exam_type: e.target.checked ? 'two_phase' : 'standard' })} className="accent-[rgb(32,44,71)]" />
             <label htmlFor="twophase" className="text-sm text-gray-600 cursor-pointer">Esame bifasico (preselezione + esame)</label>
           </div>
