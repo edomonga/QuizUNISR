@@ -24,17 +24,6 @@ export async function signUp(email: string, password: string, displayName: strin
 
   if (error) return { error: error.message };
 
-  // Create profile row (trigger also does this but belt-and-suspenders)
-  if (data.user) {
-    await supabase.from('profiles').upsert({
-      id: data.user.id,
-      email,
-      display_name: displayName,
-      is_admin: false,
-      is_active: false, // admin must activate
-    });
-  }
-
   return { error: null };
 }
 
