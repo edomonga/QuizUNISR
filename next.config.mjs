@@ -8,7 +8,7 @@
 // Supabase. Sostituisci TUOPROGETTO con il subdominio reale
 // (es. abcdefghij.supabase.co).
 
-const SUPABASE_HOST = 'https://TUOPROGETTO.supabase.co';
+const SUPABASE_HOST = 'https://mxecukuguyulubminxks.supabase.co';
 
 const securityHeaders = [
   // Forza HTTPS per 2 anni (Vercel serve già HTTPS, questo lo blinda).
