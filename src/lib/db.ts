@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { Course, MacroArea, Topic, Question, UserStats, ExamResult, ExamAnswer, ExamRules, Profile } from '@/types';
+import { getCachedCourseQuestions, invalidateQuestionsCache } from './questionsCache';
 
 // ─── Courses ──────────────────────────────────────────────────────────────────
 
@@ -74,35 +75,24 @@ export async function deleteTopic(id: string): Promise<{ error: string | null }>
 }
 
 // ─── Questions ────────────────────────────────────────────────────────────────
+//
+// NOVITÀ: le domande passano dalla cache (src/lib/questionsCache.ts).
+// getCachedCourseQuestions() scarica l'archivio del corso una sola volta e lo
+// riusa da localStorage finché non cambia. Tutti i filtri qui sotto lavorano
+// in memoria su quell'elenco: zero traffico extra verso Supabase.
 
 export async function getQuestions(courseId: string, filters?: {
   macroAreaId?: string;
   topicId?: string;
   activeOnly?: boolean;
 }): Promise<Question[]> {
-  let q = supabase
-    .from('questions')
-    .select(`
-      *,
-      macro_areas ( name ),
-      topics ( name )
-    `)
-    .eq('course_id', courseId);
-
-  if (filters?.macroAreaId) q = q.eq('macro_area_id', filters.macroAreaId);
-  if (filters?.topicId) q = q.eq('topic_id', filters.topicId);
-  if (filters?.activeOnly) q = q.eq('is_active', true);
-
-  q = q.order('created_at', { ascending: true });
-
-  const { data, error } = await q;
-  if (error) { console.error(error); return []; }
-
-  return (data ?? []).map((row: any) => ({
-    ...row,
-    macro_area_name: row.macro_areas?.name,
-    topic_name: row.topics?.name,
-  })) as Question[];
+  const all = await getCachedCourseQuestions(courseId);
+  return all.filter((q) => {
+    if (filters?.macroAreaId && q.macro_area_id !== filters.macroAreaId) return false;
+    if (filters?.topicId && q.topic_id !== filters.topicId) return false;
+    if (filters?.activeOnly && !q.is_active) return false;
+    return true;
+  });
 }
 
 export async function upsertQuestion(question: Partial<Question> & {
@@ -116,41 +106,31 @@ export async function upsertQuestion(question: Partial<Question> & {
   const payload = { ...question, updated_at: new Date().toISOString() };
   const { data, error } = await supabase.from('questions').upsert(payload).select().single();
   if (error) return { data: null, error: error.message };
+  invalidateQuestionsCache(question.course_id); // la modifica è subito visibile
   return { data: data as Question, error: null };
 }
 
 export async function deleteQuestion(id: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('questions').delete().eq('id', id);
+  if (!error) invalidateQuestionsCache(); // course_id non noto qui → svuota tutto
   return { error: error?.message ?? null };
 }
 
 export async function bulkInsertQuestions(questions: Array<Omit<Question, 'id' | 'created_at' | 'updated_at'>>): Promise<{ count: number; error: string | null }> {
   const { data, error } = await supabase.from('questions').insert(questions).select('id');
   if (error) return { count: 0, error: error.message };
+  invalidateQuestionsCache((questions[0] as any)?.course_id);
   return { count: data?.length ?? 0, error: null };
 }
 
 // ─── Random question picker for exams ─────────────────────────────────────────
 
 export async function pickExamQuestions(course: Course): Promise<Question[]> {
+  const all = await getCachedCourseQuestions(course.id);
   const results: Question[] = [];
 
   for (const [macroAreaId, count] of Object.entries(course.exam_rules.distribution)) {
-    const { data } = await supabase
-      .from('questions')
-      .select(`*, macro_areas(name), topics(name)`)
-      .eq('course_id', course.id)
-      .eq('macro_area_id', macroAreaId)
-      .eq('is_active', true);
-
-    if (!data) continue;
-
-    const pool = data.map((row: any) => ({
-      ...row,
-      macro_area_name: row.macro_areas?.name,
-      topic_name: row.topics?.name,
-    })) as Question[];
-
+    const pool = all.filter((q) => q.macro_area_id === macroAreaId && q.is_active);
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
     results.push(...shuffled.slice(0, count));
   }
@@ -299,7 +279,7 @@ export async function getWrongQuestions(
 
   if (!wrongData?.length) return { questions: [], wrongDataMap: {} };
 
-  const ids = wrongData.map((r: any) => r.question_id);
+  const idSet = new Set(wrongData.map((r: any) => r.question_id));
   const wrongDataMap: Record<string, WrongQuestionEntry> = {};
   for (const r of wrongData as any[]) {
     wrongDataMap[r.question_id] = {
@@ -310,17 +290,9 @@ export async function getWrongQuestions(
     };
   }
 
-  const { data: questions } = await supabase
-    .from('questions')
-    .select('*, macro_areas(name), topics(name)')
-    .in('id', ids)
-    .eq('is_active', true);
-
-  const qs = (questions ?? []).map((row: any) => ({
-    ...row,
-    macro_area_name: row.macro_areas?.name,
-    topic_name: row.topics?.name,
-  })) as Question[];
+  // Le domande arrivano dalla cache: filtriamo in memoria per gli id sbagliati.
+  const all = await getCachedCourseQuestions(courseId);
+  const qs = all.filter((q) => idSet.has(q.id) && q.is_active);
 
   qs.sort((a, b) => (wrongDataMap[b.id]?.wrong_count ?? 0) - (wrongDataMap[a.id]?.wrong_count ?? 0));
 
@@ -457,31 +429,17 @@ export async function getUnseenQuestions(
 ): Promise<Question[]> {
   const seenIds = await getSeenQuestionIds(userId, courseId);
 
-  let q = supabase
-    .from('questions')
-    .select('*, macro_areas(name), topics(name)')
-    .eq('course_id', courseId)
-    .eq('is_active', true);
+  // Domande dalla cache, filtrate in memoria.
+  let all = (await getCachedCourseQuestions(courseId)).filter((q) => q.is_active);
 
-  if (filters?.macroAreaIds?.length) q = q.in('macro_area_id', filters.macroAreaIds);
-  if (filters?.topicIds?.length) q = q.in('topic_id', filters.topicIds);
+  if (filters?.macroAreaIds?.length) all = all.filter((q) => filters.macroAreaIds!.includes(q.macro_area_id));
+  if (filters?.topicIds?.length) all = all.filter((q) => filters.topicIds!.includes(q.topic_id));
 
-  const { data } = await q;
-  const all = (data ?? []).map((row: any) => ({
-    ...row,
-    macro_area_name: row.macro_areas?.name,
-    topic_name: row.topics?.name,
-  })) as Question[];
-
-  return seenIds.size > 0 ? all.filter(q => !seenIds.has(q.id)) : all;
+  return seenIds.size > 0 ? all.filter((q) => !seenIds.has(q.id)) : all;
 }
 
 export async function countUnseenQuestions(userId: string, courseId: string): Promise<{ unseen: number; total: number }> {
   const seenIds = await getSeenQuestionIds(userId, courseId);
-  const { count: total } = await supabase
-    .from('questions')
-    .select('id', { count: 'exact', head: true })
-    .eq('course_id', courseId)
-    .eq('is_active', true);
-  return { unseen: (total ?? 0) - seenIds.size, total: total ?? 0 };
+  const total = (await getCachedCourseQuestions(courseId)).filter((q) => q.is_active).length;
+  return { unseen: total - seenIds.size, total };
 }
