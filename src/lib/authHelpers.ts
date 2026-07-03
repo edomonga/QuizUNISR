@@ -17,7 +17,7 @@ export async function signUp(email: string, password: string, displayName: strin
     email,
     password,
     options: {
-      emailRedirectTo: 'https://quiz-unisr.vercel.app/auth/callback',
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
       data: { display_name: displayName },
     },
   });
