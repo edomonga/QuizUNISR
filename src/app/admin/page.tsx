@@ -67,7 +67,9 @@ export default function AdminPage() {
 // ─── Helper: genera password temporanea ───────────────────────────────────────
 function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const bytes = new Uint32Array(12);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => chars[b % chars.length]).join('');
 }
 
 // ─── USERS TAB ────────────────────────────────────────────────────────────────
