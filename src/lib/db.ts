@@ -1,32 +1,31 @@
 import { supabase } from './supabase';
 import type { Course, MacroArea, Topic, Question, UserStats, ExamResult, ExamAnswer, ExamRules, Profile } from '@/types';
 import { getCachedCourseQuestions, invalidateQuestionsCache } from './questionsCache';
+import { getCachedCourse, getCachedCourses, invalidateCoursesCache } from './coursesCache';
 
 // ─── Courses ──────────────────────────────────────────────────────────────────
+// I corsi ora passano dalla cache (src/lib/coursesCache.ts): prima venivano
+// riscaricati con select=* a ogni pagina (~788 volte/giorno).
 
 export async function getCourses(): Promise<Course[]> {
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*')
-    .order('created_at', { ascending: true });
-  if (error) { console.error(error); return []; }
-  return data as Course[];
+  return getCachedCourses();
 }
 
 export async function getCourse(id: string): Promise<Course | null> {
-  const { data } = await supabase.from('courses').select('*').eq('id', id).single();
-  return data as Course | null;
+  return getCachedCourse(id);
 }
 
 export async function upsertCourse(course: Partial<Course> & { name: string }): Promise<{ data: Course | null; error: string | null }> {
   const payload = { ...course, updated_at: new Date().toISOString() };
   const { data, error } = await supabase.from('courses').upsert(payload).select().single();
   if (error) return { data: null, error: error.message };
+  invalidateCoursesCache(); // la modifica è subito visibile
   return { data: data as Course, error: null };
 }
 
 export async function deleteCourse(id: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('courses').delete().eq('id', id);
+  if (!error) invalidateCoursesCache();
   return { error: error?.message ?? null };
 }
 
@@ -75,11 +74,7 @@ export async function deleteTopic(id: string): Promise<{ error: string | null }>
 }
 
 // ─── Questions ────────────────────────────────────────────────────────────────
-//
-// NOVITÀ: le domande passano dalla cache (src/lib/questionsCache.ts).
-// getCachedCourseQuestions() scarica l'archivio del corso una sola volta e lo
-// riusa da localStorage finché non cambia. Tutti i filtri qui sotto lavorano
-// in memoria su quell'elenco: zero traffico extra verso Supabase.
+// Le domande passano dalla cache (src/lib/questionsCache.ts).
 
 export async function getQuestions(courseId: string, filters?: {
   macroAreaId?: string;
@@ -106,13 +101,13 @@ export async function upsertQuestion(question: Partial<Question> & {
   const payload = { ...question, updated_at: new Date().toISOString() };
   const { data, error } = await supabase.from('questions').upsert(payload).select().single();
   if (error) return { data: null, error: error.message };
-  invalidateQuestionsCache(question.course_id); // la modifica è subito visibile
+  invalidateQuestionsCache(question.course_id);
   return { data: data as Question, error: null };
 }
 
 export async function deleteQuestion(id: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('questions').delete().eq('id', id);
-  if (!error) invalidateQuestionsCache(); // course_id non noto qui → svuota tutto
+  if (!error) invalidateQuestionsCache();
   return { error: error?.message ?? null };
 }
 
@@ -149,13 +144,32 @@ export async function getUserStats(userId: string, courseId: string): Promise<Us
   return (data ?? []) as UserStats[];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// recordQuizAnswers — VERSIONE BATCH
+//
+// PRIMA: per ogni risposta faceva una query .single() di lettura (che restituiva
+// errore 406 quando la riga non esisteva — il caso più comune) più una scrittura.
+// Un quiz da 30 domande = ~60 richieste, metà in errore, e molto lente.
+//
+// ORA: una sola lettura per tutte le domande del quiz (con .in), poi le scritture
+// raggruppate (insert/upsert in blocco). Da ~60 richieste a ~4, zero errori 406.
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function recordQuizAnswers(
   userId: string,
   courseId: string,
   answers: { question: Question; correct: boolean }[]
 ): Promise<void> {
-  // ── 1. Aggrega per topic ───────────────────────────────────────────────────
-  const topicMap = new Map<string, { topic_id: string; topic_name: string; macro_area_id: string; macro_area_name: string; correct: number; total: number }>();
+  if (answers.length === 0) return;
+  const now = new Date().toISOString();
+  const MASTERY_THRESHOLD = 5;
+
+  // ── 1. user_stats: aggrega per topic ───────────────────────────────────────
+  const topicMap = new Map<string, {
+    topic_id: string; topic_name: string;
+    macro_area_id: string; macro_area_name: string;
+    correct: number; total: number;
+  }>();
 
   for (const { question, correct } of answers) {
     const key = question.topic_id;
@@ -174,23 +188,31 @@ export async function recordQuizAnswers(
     if (correct) entry.correct++;
   }
 
-  for (const entry of Array.from(topicMap.values())) {
-    const { data: existing } = await supabase
-      .from('user_stats')
-      .select('id, correct, total')
-      .eq('user_id', userId)
-      .eq('course_id', courseId)
-      .eq('topic_id', entry.topic_id)
-      .single();
+  const topicIds = Array.from(topicMap.keys());
 
-    if (existing) {
-      await supabase.from('user_stats').update({
-        correct: existing.correct + entry.correct,
-        total: existing.total + entry.total,
-        updated_at: new Date().toISOString(),
-      }).eq('id', existing.id);
+  // UNA lettura per tutti gli stats esistenti di questi topic.
+  const { data: existingStats } = await supabase
+    .from('user_stats')
+    .select('id, topic_id, correct, total')
+    .eq('user_id', userId)
+    .eq('course_id', courseId)
+    .in('topic_id', topicIds);
+
+  const statByTopic = new Map((existingStats ?? []).map((s: any) => [s.topic_id, s]));
+
+  const statsInserts: any[] = [];
+  const statsUpdates: any[] = [];
+  for (const entry of Array.from(topicMap.values())) {
+    const ex = statByTopic.get(entry.topic_id);
+    if (ex) {
+      statsUpdates.push({
+        id: ex.id,
+        correct: ex.correct + entry.correct,
+        total: ex.total + entry.total,
+        updated_at: now,
+      });
     } else {
-      await supabase.from('user_stats').insert({
+      statsInserts.push({
         user_id: userId,
         course_id: courseId,
         topic_id: entry.topic_id,
@@ -202,31 +224,39 @@ export async function recordQuizAnswers(
       });
     }
   }
+  if (statsInserts.length) await supabase.from('user_stats').insert(statsInserts);
+  if (statsUpdates.length) await supabase.from('user_stats').upsert(statsUpdates);
 
-  // ── 2. Aggiorna archivio errori ────────────────────────────────────────────
-  const now = new Date().toISOString();
-  const MASTERY_THRESHOLD = 5; // risposte corrette consecutive per "padronanza"
+  // ── 2. user_wrong_questions: archivio errori ───────────────────────────────
+  const qIds = answers.map((a) => a.question.id);
+
+  // UNA lettura per tutte le domande del quiz già presenti nell'archivio errori.
+  const { data: existingWrong } = await supabase
+    .from('user_wrong_questions')
+    .select('id, question_id, wrong_count, consecutive_correct, is_mastered')
+    .eq('user_id', userId)
+    .in('question_id', qIds);
+
+  const wrongByQ = new Map((existingWrong ?? []).map((r: any) => [r.question_id, r]));
+
+  const wrongInserts: any[] = [];
+  const updIncorrect: any[] = []; // sbagliate (colonne uniformi)
+  const updCorrect: any[] = [];   // corrette su domande già in archivio (colonne uniformi)
 
   for (const { question, correct } of answers) {
-    const { data: existing } = await supabase
-      .from('user_wrong_questions')
-      .select('id, wrong_count, consecutive_correct, is_mastered')
-      .eq('user_id', userId)
-      .eq('question_id', question.id)
-      .single();
-
+    const ex = wrongByQ.get(question.id);
     if (!correct) {
-      // Risposta sbagliata
-      if (existing) {
-        await supabase.from('user_wrong_questions').update({
-          wrong_count: existing.wrong_count + 1,
-          consecutive_correct: 0,      // azzera la serie positiva
-          is_mastered: false,           // torna nell'archivio se era stata rimossa
+      if (ex) {
+        updIncorrect.push({
+          id: ex.id,
+          wrong_count: ex.wrong_count + 1,
+          consecutive_correct: 0,
+          is_mastered: false,
           last_wrong_at: now,
           updated_at: now,
-        }).eq('id', existing.id);
+        });
       } else {
-        await supabase.from('user_wrong_questions').insert({
+        wrongInserts.push({
           user_id: userId,
           course_id: courseId,
           question_id: question.id,
@@ -237,20 +267,22 @@ export async function recordQuizAnswers(
           updated_at: now,
         });
       }
-    } else {
-      // Risposta corretta — aggiorna solo se esiste nell'archivio errori
-      if (existing && !existing.is_mastered) {
-        const newConsecutive = existing.consecutive_correct + 1;
-        const mastered = newConsecutive >= MASTERY_THRESHOLD;
-        await supabase.from('user_wrong_questions').update({
-          consecutive_correct: newConsecutive,
-          is_mastered: mastered,
-          last_correct_at: now,
-          updated_at: now,
-        }).eq('id', existing.id);
-      }
+    } else if (ex && !ex.is_mastered) {
+      const nc = ex.consecutive_correct + 1;
+      updCorrect.push({
+        id: ex.id,
+        consecutive_correct: nc,
+        is_mastered: nc >= MASTERY_THRESHOLD,
+        last_correct_at: now,
+        updated_at: now,
+      });
     }
+    // corretta su domanda non in archivio → niente da fare (come prima)
   }
+
+  if (wrongInserts.length) await supabase.from('user_wrong_questions').insert(wrongInserts);
+  if (updIncorrect.length) await supabase.from('user_wrong_questions').upsert(updIncorrect);
+  if (updCorrect.length) await supabase.from('user_wrong_questions').upsert(updCorrect);
 }
 
 // ─── Wrong questions (ripasso errori) ────────────────────────────────────────
@@ -262,7 +294,7 @@ export interface WrongQuestionEntry {
   is_mastered: boolean;
 }
 
-/** Restituisce le domande sbagliate NON ancora padroneggiate, ordinate dalla più sbagliata */
+/** Domande sbagliate NON ancora padroneggiate, dalla più sbagliata */
 export async function getWrongQuestions(
   userId: string,
   courseId: string,
@@ -273,7 +305,7 @@ export async function getWrongQuestions(
     .select('question_id, wrong_count, consecutive_correct, is_mastered')
     .eq('user_id', userId)
     .eq('course_id', courseId)
-    .eq('is_mastered', false)           // solo quelle non ancora padroneggiate
+    .eq('is_mastered', false)
     .order('wrong_count', { ascending: false })
     .limit(limit);
 
@@ -290,16 +322,13 @@ export async function getWrongQuestions(
     };
   }
 
-  // Le domande arrivano dalla cache: filtriamo in memoria per gli id sbagliati.
   const all = await getCachedCourseQuestions(courseId);
   const qs = all.filter((q) => idSet.has(q.id) && q.is_active);
-
   qs.sort((a, b) => (wrongDataMap[b.id]?.wrong_count ?? 0) - (wrongDataMap[a.id]?.wrong_count ?? 0));
 
   return { questions: qs, wrongDataMap };
 }
 
-/** Conta le domande sbagliate non ancora padroneggiate */
 export async function countWrongQuestions(userId: string, courseId: string): Promise<number> {
   const { count } = await supabase
     .from('user_wrong_questions')
@@ -310,7 +339,7 @@ export async function countWrongQuestions(userId: string, courseId: string): Pro
   return count ?? 0;
 }
 
-/** Segna manualmente una domanda come "la so" (rimossa dall'archivio errori) */
+/** Segna manualmente una domanda come "la so" */
 export async function markQuestionMastered(userId: string, questionId: string): Promise<void> {
   await supabase.from('user_wrong_questions').update({
     is_mastered: true,
@@ -408,18 +437,37 @@ export async function getSeenQuestionIds(userId: string, courseId: string): Prom
   return new Set((seen ?? []).map((r: any) => r.question_id));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// markQuestionsSeen — CORRETTO
+//
+// PRIMA: upsert dell'intero set con ignoreDuplicates → generava un errore 409
+// per ogni chiamata (565 errori in 24h nei report).
+// ORA: legge quali di queste domande sono GIÀ segnate e inserisce solo le nuove.
+// Una lettura + un insert (solo se necessario), senza errori.
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function markQuestionsSeen(
   userId: string,
   courseId: string,
   questionIds: string[]
 ): Promise<void> {
   if (questionIds.length === 0) return;
-  const rows = questionIds.map(qid => ({
-    user_id: userId,
-    course_id: courseId,
-    question_id: qid,
-  }));
-  await supabase.from('user_questions_seen').upsert(rows, { ignoreDuplicates: true });
+
+  const { data: existing } = await supabase
+    .from('user_questions_seen')
+    .select('question_id')
+    .eq('user_id', userId)
+    .in('question_id', questionIds);
+
+  const already = new Set((existing ?? []).map((r: any) => r.question_id));
+  const toInsert = questionIds
+    .filter((id) => !already.has(id))
+    .map((qid) => ({ user_id: userId, course_id: courseId, question_id: qid }));
+
+  if (toInsert.length) {
+    const { error } = await supabase.from('user_questions_seen').insert(toInsert);
+    if (error) console.error('markQuestionsSeen:', error.message);
+  }
 }
 
 export async function getUnseenQuestions(
@@ -429,7 +477,6 @@ export async function getUnseenQuestions(
 ): Promise<Question[]> {
   const seenIds = await getSeenQuestionIds(userId, courseId);
 
-  // Domande dalla cache, filtrate in memoria.
   let all = (await getCachedCourseQuestions(courseId)).filter((q) => q.is_active);
 
   if (filters?.macroAreaIds?.length) all = all.filter((q) => filters.macroAreaIds!.includes(q.macro_area_id));
