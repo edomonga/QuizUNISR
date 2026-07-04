@@ -32,7 +32,7 @@ export default function ProfilePage() {
         setAllQs(q);
         setFetching(false);
       });
-  }, [user, courseId]);
+  }, [user?.id, courseId]);
 
   if (loading || fetching) return <PageShell><Spinner className="mt-20" /></PageShell>;
   if (!course) return <PageShell><p className="text-center mt-20 text-gray-400">Materia non trovata.</p></PageShell>;
