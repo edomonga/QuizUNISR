@@ -84,7 +84,7 @@ export default function QuizPage() {
     const wc = await countWrongQuestions(user.id, courseId);
     setWrongCount(wc);
     setFetching(false);
-  }, [courseId, user]);
+  }, [courseId, user?.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
