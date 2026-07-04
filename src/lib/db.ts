@@ -329,7 +329,7 @@ export async function saveExamResult(result: Omit<ExamResult, 'id' | 'created_at
 export async function getExamResults(userId: string): Promise<ExamResult[]> {
   const { data } = await supabase
     .from('exam_results')
-    .select('*')
+    .select('id, user_id, course_id, course_name, score_in_30, raw_score, correct, wrong, omitted, duration_seconds, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(30);
