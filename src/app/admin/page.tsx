@@ -1576,7 +1576,7 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
 
   const flash = (type: 'ok' | 'err', text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3000); };
 
-  const setStatus = async (id: string, status: 'pending' | 'reviewed' | 'resolved') => {
+  const setStatus = async (id: string, status: 'pending' | 'resolved') => {
     const { error } = await updateReportStatus(id, status);
     if (error) flash('err', error);
     else { flash('ok', 'Stato aggiornato.'); load(); }
