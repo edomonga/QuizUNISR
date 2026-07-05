@@ -42,8 +42,6 @@ export async function getMacroAreas(courseId: string): Promise<MacroArea[]> {
 export async function upsertMacroArea(area: Partial<MacroArea> & { course_id: string; name: string }): Promise<{ data: MacroArea | null; error: string | null }> {
   const { data, error } = await supabase.from('macro_areas').upsert(area).select().single();
   if (error) return { data: null, error: error.message };
-  return { data: data as MacroArea, error: null };
-  if (error) return { data: null, error: error.message };
   invalidateMetaCache(area.course_id);
   return { data: data as MacroArea, error: null };
 }
@@ -64,9 +62,7 @@ export async function getTopics(courseId: string): Promise<Topic[]> {
 export async function upsertTopic(topic: Partial<Topic> & { macro_area_id: string; course_id: string; name: string }): Promise<{ data: Topic | null; error: string | null }> {
   const { data, error } = await supabase.from('topics').upsert(topic).select().single();
   if (error) return { data: null, error: error.message };
-  if (error) return { data: null, error: error.message };
   invalidateMetaCache(topic.course_id);
-  return { data: data as Topic, error: null };
   return { data: data as Topic, error: null };
 }
 export async function deleteTopic(id: string): Promise<{ error: string | null }> {
