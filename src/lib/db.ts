@@ -1,8 +1,8 @@
-import { getCachedMacroAreas, getCachedTopics, invalidateMetaCache } from './metaCache';
 import { supabase } from './supabase';
 import type { Course, MacroArea, Topic, Question, UserStats, ExamResult, ExamAnswer, ExamRules, Profile } from '@/types';
 import { getCachedCourseQuestions, invalidateQuestionsCache } from './questionsCache';
 import { getCachedCourse, getCachedCourses, invalidateCoursesCache } from './coursesCache';
+import { getCachedMacroAreas, getCachedTopics, invalidateMetaCache } from './metaCache';
 
 // ─── Courses ──────────────────────────────────────────────────────────────────
 // I corsi ora passano dalla cache (src/lib/coursesCache.ts): prima venivano
@@ -32,45 +32,46 @@ export async function deleteCourse(id: string): Promise<{ error: string | null }
 
 // ─── Macro Areas ──────────────────────────────────────────────────────────────
 
+// Le macro-aree passano dalla cache (src/lib/metaCache.ts): stesso
+// ordinamento (display_order) e stesso risultato, ma niente rete se
+// già viste negli ultimi 10 minuti.
 export async function getMacroAreas(courseId: string): Promise<MacroArea[]> {
-  const { data } = await supabase
-    .from('macro_areas')
-    .select('*')
-    .eq('course_id', courseId)
-    .order('display_order', { ascending: true });
-  return (data ?? []) as MacroArea[];
+  return getCachedMacroAreas(courseId);
 }
 
 export async function upsertMacroArea(area: Partial<MacroArea> & { course_id: string; name: string }): Promise<{ data: MacroArea | null; error: string | null }> {
   const { data, error } = await supabase.from('macro_areas').upsert(area).select().single();
   if (error) return { data: null, error: error.message };
   return { data: data as MacroArea, error: null };
+  if (error) return { data: null, error: error.message };
+  invalidateMetaCache(area.course_id);
+  return { data: data as MacroArea, error: null };
 }
 
 export async function deleteMacroArea(id: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('macro_areas').delete().eq('id', id);
+  if (!error) invalidateMetaCache(); // qui abbiamo solo l'id → invalida tutte le materie
   return { error: error?.message ?? null };
 }
 
 // ─── Topics ───────────────────────────────────────────────────────────────────
-
+// Gli argomenti passano dalla cache (src/lib/metaCache.ts): stesso
+// ordinamento (name) e stesso risultato.
 export async function getTopics(courseId: string): Promise<Topic[]> {
-  const { data } = await supabase
-    .from('topics')
-    .select('*')
-    .eq('course_id', courseId)
-    .order('name', { ascending: true });
-  return (data ?? []) as Topic[];
+  return getCachedTopics(courseId);
 }
 
 export async function upsertTopic(topic: Partial<Topic> & { macro_area_id: string; course_id: string; name: string }): Promise<{ data: Topic | null; error: string | null }> {
   const { data, error } = await supabase.from('topics').upsert(topic).select().single();
   if (error) return { data: null, error: error.message };
+  if (error) return { data: null, error: error.message };
+  invalidateMetaCache(topic.course_id);
+  return { data: data as Topic, error: null };
   return { data: data as Topic, error: null };
 }
-
 export async function deleteTopic(id: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('topics').delete().eq('id', id);
+  if (!error) invalidateMetaCache();
   return { error: error?.message ?? null };
 }
 
