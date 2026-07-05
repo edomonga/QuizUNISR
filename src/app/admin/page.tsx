@@ -1639,7 +1639,7 @@ const statusLabel: Record<string, string> = {
       {msg && <Alert type={msg.type} message={msg.text} />}
 
       <div className="flex gap-2 flex-wrap">
-        {(['all', 'pending', 'reviewed', 'resolved'] as const).map(f => (
+        {(['all', 'pending', 'resolved'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`text-sm font-medium px-4 py-2 rounded-xl border-2 transition-all ${filter === f ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
             {f === 'all' ? 'Tutte' : statusLabel[f]}
@@ -1696,16 +1696,10 @@ const statusLabel: Record<string, string> = {
               </svg>
               Modifica domanda
             </button>
-            {r.status !== 'reviewed' && (
-              <button onClick={() => setStatus(r.id, 'reviewed')}
-                className="text-xs bg-blue-50 border border-blue-200 text-blue-700 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">
-                🔍 In revisione
-              </button>
-            )}
             {r.status !== 'resolved' && (
               <button onClick={() => setStatus(r.id, 'resolved')}
                 className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-700 font-medium px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors">
-                ✅ Risolta
+                Risolta
               </button>
             )}
             {r.status !== 'pending' && (
