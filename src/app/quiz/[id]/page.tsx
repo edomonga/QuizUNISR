@@ -104,16 +104,20 @@ export default function QuizPage() {
   const pool = allQs.filter(q =>
     selAreas.includes(q.macro_area_id) && (selTopics.length === 0 || selTopics.includes(q.topic_id))
   );
-  const maxQ = mode === 'wrong' ? Math.min(wrongCount, 50) : Math.min(pool.length, 50);
+  const maxQ = mode === 'wrong'
+  ? wrongCount
+  : mode === 'unseen'
+    ? (unseenCount?.unseen ?? pool.length)
+    : pool.length;
 
   const startQuiz = async () => {
     if (!user) return;
     let picked: Question[];
 
     if (mode === 'wrong') {
-      const { questions, wrongDataMap: wdm } = await getWrongQuestions(user.id, courseId, count);
+      const { questions, wrongDataMap: wdm } = await getWrongQuestions(user.id, courseId, maxQ);
       setWrongDataMap(wdm);
-      picked = questions.slice(0, count);
+      picked = questions.slice(0, maxQ);
     } else if (mode === 'unseen') {
       if (!selAreas.length || !pool.length) return;
       const unseen = await getUnseenQuestions(user.id, courseId, {
@@ -254,21 +258,14 @@ export default function QuizPage() {
           )}
 
           {(!isWrongMode ? selAreas.length > 0 : wrongCount > 0) && (
-            <Card>
-              <h3 className="font-semibold text-[rgb(32,44,71)] mb-3 text-sm">
-                {isWrongMode ? '2' : availTopics.length > 0 ? '4' : '3'} · Numero di domande:
-                <span className={`ml-1 ${isWrongMode ? 'text-red-500' : 'text-[rgb(99,130,201)]'}`}>{Math.min(count, maxQ || 5)}</span>
-              </h3>
-              <input type="range" min={5} max={maxQ || 5} value={Math.min(count, maxQ || 5)}
-                onChange={e => setCount(+e.target.value)}
-                className={`w-full ${isWrongMode ? 'accent-red-500' : 'accent-[rgb(32,44,71)]'}`} />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>5</span>
-                <span>Disponibili: {isWrongMode ? wrongCount : mode === 'unseen' ? (unseenCount?.unseen ?? pool.length) : pool.length}</span>
-                <span>{maxQ || 5}</span>
-              </div>
-            </Card>
-          )}
+  <Card>
+    <p className="text-sm text-[rgb(32,44,71)]">
+      {isWrongMode
+        ? `Ripasserai tutte le ${maxQ} domande da rivedere.`
+        : `La sessione includerà tutte le ${maxQ} domande disponibili.`}
+    </p>
+  </Card>
+)}
 
           <button onClick={startQuiz} disabled={!canStart}
             className={`w-full py-3 text-base rounded-xl font-semibold transition-all disabled:opacity-40 ${isWrongMode ? 'bg-red-500 hover:bg-red-600 text-white' : 'btn-primary'}`}>
