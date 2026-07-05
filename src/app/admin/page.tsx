@@ -1626,15 +1626,13 @@ function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => voi
   };
 
   const statusStyle: Record<string, string> = {
-    pending: 'bg-amber-100 text-amber-700',
-    reviewed: 'bg-blue-100 text-blue-700',
-    resolved: 'bg-emerald-100 text-emerald-700',
-  };
-  const statusLabel: Record<string, string> = {
-    pending: '⏳ In attesa',
-    reviewed: '🔍 In revisione',
-    resolved: '✅ Risolta',
-  };
+  pending: 'bg-amber-100 text-amber-700',
+  resolved: 'bg-emerald-100 text-emerald-700',
+};
+const statusLabel: Record<string, string> = {
+  pending: 'Aperta',
+  resolved: 'Risolta',
+};
 
   return (
     <div className="space-y-4">
