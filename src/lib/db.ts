@@ -289,7 +289,7 @@ export interface QuestionReport {
   selected_answer: string;
   correct_answer: string;
   note: string;
-  status: 'pending' | 'reviewed' | 'resolved';
+  status: 'pending' | 'resolved';
   created_at: string;
 }
 
@@ -315,8 +315,12 @@ export async function getReports(status?: string): Promise<QuestionReport[]> {
   return (data ?? []) as QuestionReport[];
 }
 
-export async function updateReportStatus(id: string, status: 'pending' | 'reviewed' | 'resolved'): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('question_reports').update({ status }).eq('id', id);
+export async function updateReportStatus(id: string, status: 'pending' | 'resolved'): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('question_reports').update({
+    status,
+    // risolta → parte il timer dei 3 giorni; riaperta → timer azzerato
+    resolved_at: status === 'resolved' ? new Date().toISOString() : null,
+  }).eq('id', id);
   return { error: error?.message ?? null };
 }
 
