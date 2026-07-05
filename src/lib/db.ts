@@ -334,12 +334,15 @@ export async function getSeenQuestionIds(userId: string, courseId: string): Prom
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// markQuestionsSeen — CORRETTO
+// markQuestionsSeen — VERSIONE UPSERT IDEMPOTENTE
 //
-// PRIMA: upsert dell'intero set con ignoreDuplicates → generava un errore 409
-// per ogni chiamata (565 errori in 24h nei report).
-// ORA: legge quali di queste domande sono GIÀ segnate e inserisce solo le nuove.
-// Una lettura + un insert (solo se necessario), senza errori.
+// Un solo upsert con ignoreDuplicates (= ON CONFLICT DO NOTHING):
+//  - niente lettura preliminare (−1 richiesta a ogni avvio quiz);
+//  - niente errori 409 anche con chiamate concorrenti (StrictMode, doppi click);
+//  - risultato identico: le righe già presenti non vengono toccate.
+// onConflict combacia con il vincolo unico reale della tabella:
+// user_questions_seen_user_id_course_id_question_id_key
+// su (user_id, course_id, question_id).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function markQuestionsSeen(
@@ -349,21 +352,19 @@ export async function markQuestionsSeen(
 ): Promise<void> {
   if (questionIds.length === 0) return;
 
-  const { data: existing } = await supabase
+  const rows = questionIds.map((qid) => ({
+    user_id: userId,
+    course_id: courseId,
+    question_id: qid,
+  }));
+
+  const { error } = await supabase
     .from('user_questions_seen')
-    .select('question_id')
-    .eq('user_id', userId)
-    .in('question_id', questionIds);
-
-  const already = new Set((existing ?? []).map((r: any) => r.question_id));
-  const toInsert = questionIds
-    .filter((id) => !already.has(id))
-    .map((qid) => ({ user_id: userId, course_id: courseId, question_id: qid }));
-
-  if (toInsert.length) {
-    const { error } = await supabase.from('user_questions_seen').insert(toInsert);
-    if (error) console.error('markQuestionsSeen:', error.message);
-  }
+    .upsert(rows, {
+      onConflict: 'user_id,course_id,question_id',
+      ignoreDuplicates: true,
+    });
+  if (error) console.error('markQuestionsSeen:', error.message);
 }
 
 export async function getUnseenQuestions(
