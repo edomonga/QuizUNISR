@@ -18,7 +18,7 @@ const DATA_PREFIX  = 'uniquiz:questions:';
 const CHECK_PREFIX = 'uniquiz:qcheck:';
 // Non ricontrolliamo la versione più di una volta al minuto: se l'utente
 // naviga quiz → profilo → quiz in pochi secondi, non rifacciamo la verifica.
-const RECHECK_MS = 60 * 1000;
+const RECHECK_MS = 5 * 60 * 1000; // 5 minuti
 
 interface CacheEntry {
   version: string;
@@ -70,20 +70,21 @@ function markChecked(courseId: string) {
   }
 }
 
-/** Query leggera: firma di versione dell'archivio domande del corso. */
+/**
+ * Query leggera UNIFICATA: in una sola richiesta ottiene sia il numero
+ * totale di domande del corso (header Content-Range, via count:'exact')
+ * sia l'updated_at più recente (unica riga restituita, ~100 byte).
+ * Prima erano DUE richieste separate (HEAD count + GET limit 1).
+ */
 async function fetchVersion(courseId: string): Promise<string> {
-  const { count } = await supabase
+  const { data, count, error } = await supabase
     .from('questions')
-    .select('id', { count: 'exact', head: true }) // head:true → nessun body
-    .eq('course_id', courseId);
-
-  const { data } = await supabase
-    .from('questions')
-    .select('updated_at')
+    .select('updated_at', { count: 'exact' })
     .eq('course_id', courseId)
     .order('updated_at', { ascending: false })
     .limit(1);
 
+  if (error) throw error;
   return `${count ?? 0}:${data?.[0]?.updated_at ?? '0'}`;
 }
 
