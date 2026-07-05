@@ -145,144 +145,40 @@ export async function getUserStats(userId: string, courseId: string): Promise<Us
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// recordQuizAnswers — VERSIONE BATCH
+// recordQuizAnswers — VERSIONE RPC
 //
-// PRIMA: per ogni risposta faceva una query .single() di lettura (che restituiva
-// errore 406 quando la riga non esisteva — il caso più comune) più una scrittura.
-// Un quiz da 30 domande = ~60 richieste, metà in errore, e molto lente.
-//
-// ORA: una sola lettura per tutte le domande del quiz (con .in), poi le scritture
-// raggruppate (insert/upsert in blocco). Da ~60 richieste a ~4, zero errori 406.
+// Tutto il salvataggio di fine quiz (statistiche per argomento + archivio
+// errori) avviene in UNA sola richiesta, dentro la funzione Postgres
+// record_quiz_answers. Vantaggi rispetto alla versione batch:
+//  - da ~6 richieste a 1 per ogni quiz/esame completato;
+//  - niente più errori 403 (gli upsert parziali violavano il WITH CHECK
+//    delle policy RLS e gli aggiornamenti andavano persi);
+//  - atomico: o si salva tutto o niente;
+//  - user_id preso da auth.uid() lato server, non dal client.
+// La firma resta identica: nessuna modifica nei componenti che la chiamano.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function recordQuizAnswers(
-  userId: string,
+  userId: string, // mantenuto per compatibilità di firma; lato server si usa auth.uid()
   courseId: string,
   answers: { question: Question; correct: boolean }[]
 ): Promise<void> {
   if (answers.length === 0) return;
-  const now = new Date().toISOString();
-  const MASTERY_THRESHOLD = 5;
 
-  // ── 1. user_stats: aggrega per topic ───────────────────────────────────────
-  const topicMap = new Map<string, {
-    topic_id: string; topic_name: string;
-    macro_area_id: string; macro_area_name: string;
-    correct: number; total: number;
-  }>();
+  const payload = answers.map(({ question, correct }) => ({
+    question_id: question.id,
+    topic_id: question.topic_id,
+    topic_name: question.topic_name ?? '',
+    macro_area_id: question.macro_area_id,
+    macro_area_name: question.macro_area_name ?? '',
+    correct,
+  }));
 
-  for (const { question, correct } of answers) {
-    const key = question.topic_id;
-    if (!topicMap.has(key)) {
-      topicMap.set(key, {
-        topic_id: question.topic_id,
-        topic_name: question.topic_name ?? '',
-        macro_area_id: question.macro_area_id,
-        macro_area_name: question.macro_area_name ?? '',
-        correct: 0,
-        total: 0,
-      });
-    }
-    const entry = topicMap.get(key)!;
-    entry.total++;
-    if (correct) entry.correct++;
-  }
-
-  const topicIds = Array.from(topicMap.keys());
-
-  // UNA lettura per tutti gli stats esistenti di questi topic.
-  const { data: existingStats } = await supabase
-    .from('user_stats')
-    .select('id, topic_id, correct, total')
-    .eq('user_id', userId)
-    .eq('course_id', courseId)
-    .in('topic_id', topicIds);
-
-  const statByTopic = new Map((existingStats ?? []).map((s: any) => [s.topic_id, s]));
-
-  const statsInserts: any[] = [];
-  const statsUpdates: any[] = [];
-  for (const entry of Array.from(topicMap.values())) {
-    const ex = statByTopic.get(entry.topic_id);
-    if (ex) {
-      statsUpdates.push({
-        id: ex.id,
-        correct: ex.correct + entry.correct,
-        total: ex.total + entry.total,
-        updated_at: now,
-      });
-    } else {
-      statsInserts.push({
-        user_id: userId,
-        course_id: courseId,
-        topic_id: entry.topic_id,
-        topic_name: entry.topic_name,
-        macro_area_id: entry.macro_area_id,
-        macro_area_name: entry.macro_area_name,
-        correct: entry.correct,
-        total: entry.total,
-      });
-    }
-  }
-  if (statsInserts.length) await supabase.from('user_stats').insert(statsInserts);
-  if (statsUpdates.length) await supabase.from('user_stats').upsert(statsUpdates);
-
-  // ── 2. user_wrong_questions: archivio errori ───────────────────────────────
-  const qIds = answers.map((a) => a.question.id);
-
-  // UNA lettura per tutte le domande del quiz già presenti nell'archivio errori.
-  const { data: existingWrong } = await supabase
-    .from('user_wrong_questions')
-    .select('id, question_id, wrong_count, consecutive_correct, is_mastered')
-    .eq('user_id', userId)
-    .in('question_id', qIds);
-
-  const wrongByQ = new Map((existingWrong ?? []).map((r: any) => [r.question_id, r]));
-
-  const wrongInserts: any[] = [];
-  const updIncorrect: any[] = []; // sbagliate (colonne uniformi)
-  const updCorrect: any[] = [];   // corrette su domande già in archivio (colonne uniformi)
-
-  for (const { question, correct } of answers) {
-    const ex = wrongByQ.get(question.id);
-    if (!correct) {
-      if (ex) {
-        updIncorrect.push({
-          id: ex.id,
-          wrong_count: ex.wrong_count + 1,
-          consecutive_correct: 0,
-          is_mastered: false,
-          last_wrong_at: now,
-          updated_at: now,
-        });
-      } else {
-        wrongInserts.push({
-          user_id: userId,
-          course_id: courseId,
-          question_id: question.id,
-          wrong_count: 1,
-          consecutive_correct: 0,
-          is_mastered: false,
-          last_wrong_at: now,
-          updated_at: now,
-        });
-      }
-    } else if (ex && !ex.is_mastered) {
-      const nc = ex.consecutive_correct + 1;
-      updCorrect.push({
-        id: ex.id,
-        consecutive_correct: nc,
-        is_mastered: nc >= MASTERY_THRESHOLD,
-        last_correct_at: now,
-        updated_at: now,
-      });
-    }
-    // corretta su domanda non in archivio → niente da fare (come prima)
-  }
-
-  if (wrongInserts.length) await supabase.from('user_wrong_questions').insert(wrongInserts);
-  if (updIncorrect.length) await supabase.from('user_wrong_questions').upsert(updIncorrect);
-  if (updCorrect.length) await supabase.from('user_wrong_questions').upsert(updCorrect);
+  const { error } = await supabase.rpc('record_quiz_answers', {
+    p_course_id: courseId,
+    p_answers: payload,
+  });
+  if (error) console.error('recordQuizAnswers:', error.message);
 }
 
 // ─── Wrong questions (ripasso errori) ────────────────────────────────────────
