@@ -1555,7 +1555,7 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
 function ReportsTab({ onGotoQuestion }: { onGotoQuestion?: (text: string) => void }) {
   const [reports, setReports] = useState<QuestionReport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed' | 'resolved'>('pending');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'resolved'>('pending');
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [editingReport, setEditingReport] = useState<QuestionReport | null>(null);
   const [editQuestion, setEditQuestion] = useState<Question | null>(null);
