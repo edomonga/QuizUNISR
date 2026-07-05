@@ -1,3 +1,4 @@
+import { getCachedMacroAreas, getCachedTopics, invalidateMetaCache } from './metaCache';
 import { supabase } from './supabase';
 import type { Course, MacroArea, Topic, Question, UserStats, ExamResult, ExamAnswer, ExamRules, Profile } from '@/types';
 import { getCachedCourseQuestions, invalidateQuestionsCache } from './questionsCache';
