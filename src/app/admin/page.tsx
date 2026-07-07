@@ -535,30 +535,54 @@ function CourseModal({ initial, onClose, onSave }: {
 
     const reader = new FileReader();
     reader.onerror = () => setIconError('Impossibile leggere il file. Riprova.');
-
-    // Gli SVG sono vettoriali e leggeri: si tengono così come sono (nitidi a ogni dimensione).
-    if (file.type === 'image/svg+xml') {
-      reader.onload = () => setForm(f => ({ ...f, icon: String(reader.result) }));
-      reader.readAsDataURL(file);
-      return;
-    }
-
-    // Raster (PNG/JPG/WebP): ridimensiona automaticamente a max 128px e ottimizza.
     reader.onload = () => {
       const img = new Image();
       img.onerror = () => setIconError('Immagine non valida. Riprova.');
       img.onload = () => {
-        const MAX = 128;
-        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { setIconError('Ridimensionamento non riuscito. Riprova.'); return; }
-        ctx.drawImage(img, 0, 0, w, h);
-        // PNG per preservare la trasparenza; già piccolo dopo il resize.
-        setForm(f => ({ ...f, icon: canvas.toDataURL('image/png') }));
+        // 1. Disegna la sorgente su un canvas di lavoro (max 512px per limitare la scansione).
+        const WORK = 512;
+        const iw0 = img.naturalWidth || img.width || 256;
+        const ih0 = img.naturalHeight || img.height || 256;
+        const ws = Math.min(1, WORK / Math.max(iw0, ih0));
+        const iw = Math.max(1, Math.round(iw0 * ws));
+        const ih = Math.max(1, Math.round(ih0 * ws));
+        const work = document.createElement('canvas');
+        work.width = iw; work.height = ih;
+        const wctx = work.getContext('2d');
+        if (!wctx) { setIconError('Elaborazione non riuscita. Riprova.'); return; }
+        wctx.drawImage(img, 0, 0, iw, ih);
+
+        // 2. Ritaglia il bordo trasparente (bounding box dei pixel opachi).
+        let minX = iw, minY = ih, maxX = 0, maxY = 0, found = false;
+        try {
+          const { data } = wctx.getImageData(0, 0, iw, ih);
+          for (let y = 0; y < ih; y++) {
+            for (let x = 0; x < iw; x++) {
+              if (data[(y * iw + x) * 4 + 3] > 12) {
+                found = true;
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+              }
+            }
+          }
+        } catch { found = false; }
+        if (!found) { minX = 0; minY = 0; maxX = iw - 1; maxY = ih - 1; } // es. JPG senza trasparenza
+        const cw = maxX - minX + 1;
+        const ch = maxY - minY + 1;
+
+        // 3. Scala il contenuto per riempire ~82% di un riquadro 128px (stesso "peso" delle icone).
+        const BOX = 128, CONTENT = 106;
+        const s = CONTENT / Math.max(cw, ch);
+        const dw = Math.max(1, Math.round(cw * s));
+        const dh = Math.max(1, Math.round(ch * s));
+        const out = document.createElement('canvas');
+        out.width = BOX; out.height = BOX;
+        const octx = out.getContext('2d');
+        if (!octx) { setIconError('Elaborazione non riuscita. Riprova.'); return; }
+        octx.imageSmoothingEnabled = true;
+        octx.imageSmoothingQuality = 'high';
+        octx.drawImage(work, minX, minY, cw, ch, (BOX - dw) / 2, (BOX - dh) / 2, dw, dh);
+        setForm(f => ({ ...f, icon: out.toDataURL('image/png') }));
       };
       img.src = String(reader.result);
     };
@@ -646,7 +670,7 @@ function CourseModal({ initial, onClose, onSave }: {
           </div>
           {iconError
             ? <p className="mt-1.5 text-[11px] text-red-500">{iconError}</p>
-            : <p className="mt-1.5 text-[11px] text-gray-400">Scegli dal catalogo o carica la tua (PNG, SVG, JPG, WebP). Le immagini vengono ridimensionate automaticamente.</p>}
+            : <p className="mt-1.5 text-[11px] text-gray-400">Scegli dal catalogo o carica la tua (PNG, SVG, JPG, WebP). Vengono ridimensionate e ritagliate automaticamente per riempire il riquadro.</p>}
         </div>
         <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
 
