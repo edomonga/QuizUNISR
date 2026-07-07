@@ -531,10 +531,37 @@ function CourseModal({ initial, onClose, onSave }: {
   const handleIconUpload = (file: File) => {
     setIconError('');
     if (!file.type.startsWith('image/')) { setIconError('Formato non valido: usa PNG, SVG, JPG o WebP.'); return; }
-    if (file.size > 40 * 1024) { setIconError('Icona troppo grande (max 40 KB). Usa un\'immagine più piccola o un SVG.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setIconError('File troppo grande (max 5 MB).'); return; }
+
     const reader = new FileReader();
-    reader.onload = () => setForm(f => ({ ...f, icon: String(reader.result) }));
     reader.onerror = () => setIconError('Impossibile leggere il file. Riprova.');
+
+    // Gli SVG sono vettoriali e leggeri: si tengono così come sono (nitidi a ogni dimensione).
+    if (file.type === 'image/svg+xml') {
+      reader.onload = () => setForm(f => ({ ...f, icon: String(reader.result) }));
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Raster (PNG/JPG/WebP): ridimensiona automaticamente a max 128px e ottimizza.
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => setIconError('Immagine non valida. Riprova.');
+      img.onload = () => {
+        const MAX = 128;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { setIconError('Ridimensionamento non riuscito. Riprova.'); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        // PNG per preservare la trasparenza; già piccolo dopo il resize.
+        setForm(f => ({ ...f, icon: canvas.toDataURL('image/png') }));
+      };
+      img.src = String(reader.result);
+    };
     reader.readAsDataURL(file);
   };
 
@@ -619,7 +646,7 @@ function CourseModal({ initial, onClose, onSave }: {
           </div>
           {iconError
             ? <p className="mt-1.5 text-[11px] text-red-500">{iconError}</p>
-            : <p className="mt-1.5 text-[11px] text-gray-400">Scegli dal catalogo o carica la tua (PNG, SVG, JPG, WebP · max 40&nbsp;KB · consigliato SVG quadrato).</p>}
+            : <p className="mt-1.5 text-[11px] text-gray-400">Scegli dal catalogo o carica la tua (PNG, SVG, JPG, WebP). Le immagini vengono ridimensionate automaticamente.</p>}
         </div>
         <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
 
