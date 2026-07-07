@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Modal } from '@/components/ui';
+import { Icon, type IconName } from '@/components/Icon';
 import { submitFeedback, type FeedbackCategory } from '@/lib/db';
 
-const CATEGORIES: { value: FeedbackCategory; label: string; icon: string }[] = [
-  { value: 'suggerimento', label: 'Suggerimento', icon: '💡' },
-  { value: 'bug',          label: 'Problema',     icon: '🐞' },
-  { value: 'contenuti',    label: 'Contenuti',    icon: '📚' },
-  { value: 'altro',        label: 'Altro',        icon: '💬' },
+const CATEGORIES: { value: FeedbackCategory; label: string; icon: IconName }[] = [
+  { value: 'suggerimento', label: 'Suggerimento', icon: 'bulb' },
+  { value: 'bug',          label: 'Problema',     icon: 'bug' },
+  { value: 'contenuti',    label: 'Contenuti',    icon: 'book' },
+  { value: 'altro',        label: 'Altro',        icon: 'message' },
 ];
 
 export function FeedbackButton() {
@@ -51,9 +52,9 @@ export function FeedbackButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="group flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-200 bg-white/60 px-4 py-3 text-sm font-medium text-gray-500 transition-all hover:border-[rgb(32,44,71)] hover:text-[rgb(32,44,71)] hover:shadow-sm"
+        className="group flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-200 bg-white/60 px-4 py-3 text-sm font-medium text-gray-500 transition-all hover:border-[color:var(--sig)] hover:text-[color:var(--sig)] hover:bg-[color:var(--sig-soft)] hover:shadow-sm"
       >
-        <span className="text-base transition-transform group-hover:scale-110">💡</span>
+        <Icon name="bulb" className="w-4 h-4 transition-transform group-hover:scale-110" />
         Hai un'idea per migliorare UniQuiz? Inviaci un feedback
       </button>
 
@@ -61,7 +62,9 @@ export function FeedbackButton() {
         <Modal title="Invia un feedback" onClose={reset}>
           {sent ? (
             <div className="py-6 text-center">
-              <div className="mb-2 text-4xl">🙌</div>
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <Icon name="check" className="h-7 w-7" strokeWidth={2.4} />
+              </div>
               <p className="font-semibold text-emerald-700">Grazie per il tuo feedback!</p>
               <p className="mt-1 text-sm text-gray-500">Lo useremo per migliorare l'app.</p>
               <button onClick={reset} className="btn-primary mt-5 w-full">Chiudi</button>
@@ -87,7 +90,7 @@ export function FeedbackButton() {
                           : 'border-gray-200 text-gray-600 hover:border-gray-300'
                       }`}
                     >
-                      <span>{c.icon}</span>
+                      <Icon name={c.icon} className="w-4 h-4" />
                       {c.label}
                     </button>
                   ))}

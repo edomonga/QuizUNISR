@@ -8,6 +8,11 @@
   --navy-mid: rgb(52, 69, 110);
   --navy-pale: rgb(240, 242, 247);
   --accent: rgb(99, 130, 201);
+  /* Signature accent — teal clinico (redesign) */
+  --sig: #12938F;
+  --sig-strong: #0E7C79;
+  --sig-soft: #E2F2F1;
+  --sig-on-nav: #8FE3DE;
 }
 
 * { box-sizing: border-box; }
@@ -47,6 +52,13 @@ body {
   @apply bg-white rounded-2xl shadow-sm border border-gray-100 p-5
          hover:shadow-md hover:border-[rgb(32,44,71)] transition-all duration-200 cursor-pointer;
 }
+
+/* ── Signature accent helpers (redesign) ── */
+.text-sig { color: var(--sig); }
+.bg-sig-soft { background-color: var(--sig-soft); }
+.border-sig { border-color: var(--sig); }
+/* Navbar gradient */
+.nav-grad { background-image: linear-gradient(162deg, rgb(39,54,98) 0%, rgb(26,37,64) 100%); }
 
 /* ── Quiz option buttons ── */
 .opt-btn {
