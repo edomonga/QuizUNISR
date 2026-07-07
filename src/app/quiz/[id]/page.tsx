@@ -154,12 +154,12 @@ export default function QuizPage() {
             <div className="grid grid-cols-1 gap-2">
               <button onClick={() => setMode('all')}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'all' ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
-                <div className="font-semibold text-sm text-[rgb(32,44,71)] flex items-center gap-2"><Icon name="book" className="w-4 h-4 text-[color:var(--sig)]" />Tutte le domande</div>
+                <div className="font-semibold text-sm text-[rgb(32,44,71)] flex items-center gap-2"><Icon name="layers" className="w-4 h-4 text-[color:var(--sig)]" />Tutte le domande</div>
                 <div className="text-xs text-gray-400 mt-0.5 ml-6">Pescate casualmente dal pool</div>
               </button>
               <button onClick={() => setMode('unseen')}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'unseen' ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
-                <div className="font-semibold text-sm text-[rgb(32,44,71)] flex items-center gap-2"><Icon name="sparkles" className="w-4 h-4 text-[color:var(--sig)]" />Solo non viste</div>
+                <div className="font-semibold text-sm text-[rgb(32,44,71)] flex items-center gap-2"><Icon name="eye" className="w-4 h-4 text-[color:var(--sig)]" />Solo non viste</div>
                 <div className="text-xs text-gray-400 mt-0.5 ml-6">
                   {unseenCount ? `${unseenCount.unseen} domande disponibili` : 'Solo domande nuove'}
                 </div>

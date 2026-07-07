@@ -33,7 +33,12 @@ export function TopNav({ courseName }: { courseName?: string }) {
             <Icon name="sliders" className="w-[18px] h-[18px]" />
           </Link>
         )}
-        <span className="text-blue-100/80 text-sm hidden sm:block">{user?.display_name}</span>
+        <Link href="/account" title="Il tuo account" className="flex items-center gap-2 pl-1 pr-1 py-1 rounded-lg hover:bg-white/10 transition-colors">
+          <span className="text-blue-100/80 text-sm hidden sm:block">{user?.display_name}</span>
+          <span className="w-7 h-7 rounded-full bg-white/10 ring-1 ring-inset ring-white/15 text-[#8FE3DE] flex items-center justify-center">
+            <Icon name="user" className="w-[15px] h-[15px]" />
+          </span>
+        </Link>
         <button onClick={handleLogout} className="text-[#8FE3DE] hover:text-white text-xs font-semibold transition-colors px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10">
           Esci
         </button>

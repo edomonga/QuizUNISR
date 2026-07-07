@@ -13,7 +13,10 @@ export type IconName =
   | 'chevron-right' | 'chevron-left' | 'arrow-right'
   | 'trend-down' | 'zap' | 'chart' | 'clock' | 'square' | 'target'
   | 'mail' | 'lock' | 'edit' | 'logout' | 'shield'
-  | 'sparkles' | 'alert' | 'trophy' | 'shuffle' | 'dice' | 'file';
+  | 'sparkles' | 'alert' | 'trophy' | 'shuffle' | 'dice' | 'file'
+  | 'layers' | 'eye' | 'folder' | 'list' | 'inbox' | 'grid'
+  | 'heart' | 'brain' | 'bone' | 'pill' | 'lungs' | 'tooth' | 'syringe'
+  | 'trash' | 'plus' | 'upload' | 'download' | 'search' | 'key';
 
 const paths: Record<IconName, JSX.Element> = {
   pulse: <path d="M2 12h4l2.5-6L12 18l2.5-8L18 12h4" />,
@@ -53,6 +56,25 @@ const paths: Record<IconName, JSX.Element> = {
   shuffle: <><path d="M16 3h5v5" /><path d="M4 20L21 3" /><path d="M21 16v5h-5" /><path d="M15 15l6 6" /><path d="M4 4l5 5" /></>,
   dice: <><rect x="4" y="4" width="16" height="16" rx="3.5" /><circle cx="9" cy="9" r="1" fill="currentColor" stroke="none" /><circle cx="15" cy="15" r="1" fill="currentColor" stroke="none" /><circle cx="15" cy="9" r="1" fill="currentColor" stroke="none" /><circle cx="9" cy="15" r="1" fill="currentColor" stroke="none" /></>,
   file: <><path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /><path d="M14 3v4h4" /><path d="M9 13h6M9 16.5h4" /></>,
+  layers: <><path d="M12 3l9 5-9 5-9-5z" /><path d="M3.5 12L12 16.5 20.5 12" /></>,
+  eye: <><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.7" /></>,
+  folder: <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
+  list: <><path d="M9 6h11" /><path d="M9 12h11" /><path d="M9 18h11" /><circle cx="4.5" cy="6" r="1.1" fill="currentColor" stroke="none" /><circle cx="4.5" cy="12" r="1.1" fill="currentColor" stroke="none" /><circle cx="4.5" cy="18" r="1.1" fill="currentColor" stroke="none" /></>,
+  inbox: <><path d="M4 13l2.2-7.1A2 2 0 0 1 8.1 4.5h7.8a2 2 0 0 1 1.9 1.4L20 13v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /><path d="M4 13h4l1.5 2.5h5L16 13h4" /></>,
+  grid: <><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></>,
+  heart: <path d="M12 20s-7-4.6-9.2-8.4C1.3 8.8 2.7 5.5 6 5.5c2 0 3.2 1.3 4 2.4.8-1.1 2-2.4 4-2.4 3.3 0 4.7 3.3 3.2 6.1C19 15.4 12 20 12 20z" />,
+  brain: <><path d="M12 5a3 3 0 0 0-5.5 1.7A2.8 2.8 0 0 0 5 12a2.8 2.8 0 0 0 1.6 4.3A2.8 2.8 0 0 0 12 18z" /><path d="M12 5a3 3 0 0 1 5.5 1.7A2.8 2.8 0 0 1 19 12a2.8 2.8 0 0 1-1.6 4.3A2.8 2.8 0 0 1 12 18z" /><path d="M12 5v13" /></>,
+  bone: <path d="M7 7a2 2 0 1 1 2.6 2.6l4.8 4.8A2 2 0 1 1 17 17a2 2 0 1 1-2.6-2.6L9.6 9.6A2 2 0 1 1 7 7z" />,
+  pill: <><path d="M10.5 3.6l9.9 9.9a4.95 4.95 0 0 1-7 7l-9.9-9.9a4.95 4.95 0 0 1 7-7z" /><path d="M7 7l10 10" /></>,
+  lungs: <><path d="M12 4v8" /><path d="M9 8.5c-3 1.2-4 4-4 7.5 0 1.9 2 2.9 3 2s2-1.9 2-3.8V9.4c0-.8-.6-1.2-1-.9z" /><path d="M15 8.5c3 1.2 4 4 4 7.5 0 1.9-2 2.9-3 2s-2-1.9-2-3.8V9.4c0-.8.6-1.2 1-.9z" /></>,
+  tooth: <path d="M8 4c-2 0-4 1.5-4 4 0 2 1 3 1.5 6C6 17 6.4 20 8 20c1.2 0 1.4-2 2-4 .3-1 .5-1.4 2-1.4s1.7.4 2 1.4c.6 2 .8 4 2 4 1.6 0 2-3 2.5-6 .5-3 1.5-4 1.5-6 0-2.5-2-4-4-4-1.6 0-2.4 1-4 1s-2.4-1-4-1z" />,
+  syringe: <><path d="M18 3l3 3" /><path d="M15 6l3 3" /><path d="M16.5 7.5L7 17l-2.5 4.5-.5-.5L8.5 18 18 8.5" /><path d="M9 11l3 3" /></>,
+  trash: <><path d="M4 7h16" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /><path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12" /><path d="M10 11v6M14 11v6" /></>,
+  plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
+  upload: <><path d="M12 15V4" /><path d="M8 8l4-4 4 4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></>,
+  download: <><path d="M12 4v11" /><path d="M8 11l4 4 4-4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></>,
+  search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></>,
+  key: <><circle cx="8" cy="8" r="4" /><path d="M11 11l8 8" /><path d="M16 16l2-2" /></>,
 };
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

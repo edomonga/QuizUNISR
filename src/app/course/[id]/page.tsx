@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getCourse, getUserStats, getExamResults } from '@/lib/db';
 import { PageShell, Card, Spinner, ProgressBar } from '@/components/ui';
 import { Icon } from '@/components/Icon';
+import { CourseIcon } from '@/lib/courseIcons';
 import type { Course, UserStats, ExamResult } from '@/types';
 
 function fmt(s: number) {
@@ -62,7 +63,7 @@ export default function CoursePage() {
         <div className="relative overflow-hidden rounded-2xl nav-grad text-white p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-2xl mb-1">{course.icon}</div>
+              <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-[#8FE3DE] mb-2"><CourseIcon icon={course.icon} className="w-6 h-6" /></div>
               <h2 className="text-xl font-bold">{course.name}</h2>
               <p className="text-blue-200 text-xs mt-0.5">{course.subtitle}</p>
             </div>

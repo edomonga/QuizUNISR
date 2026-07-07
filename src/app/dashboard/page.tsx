@@ -7,6 +7,7 @@ import { getCourses } from '@/lib/db';
 import { PageShell, Card, Spinner } from '@/components/ui';
 import { FeedbackButton } from '@/components/FeedbackButton';
 import { Icon } from '@/components/Icon';
+import { CourseIcon } from '@/lib/courseIcons';
 import type { Course } from '@/types';
 
 export default function DashboardPage() {
@@ -131,7 +132,7 @@ function CourseCard({ course }: { course: Course }) {
     return (
       <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 opacity-70 cursor-not-allowed">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0 grayscale opacity-70">{course.icon}</div>
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-400 grayscale opacity-70"><CourseIcon icon={course.icon} className="w-6 h-6" /></div>
           <div className="min-w-0">
             <h3 className="font-bold text-gray-500">{course.name}</h3>
             <p className="text-sm text-gray-400 mt-0.5 truncate">{course.subtitle}</p>
@@ -145,7 +146,7 @@ function CourseCard({ course }: { course: Course }) {
   return (
     <Link href={`/course/${course.id}`}
       className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm hover:-translate-y-0.5 hover:shadow-lg hover:border-[color:var(--sig)] transition-all duration-200 cursor-pointer">
-      <div className="w-12 h-12 rounded-2xl bg-[color:var(--navy-pale)] group-hover:bg-[color:var(--sig-soft)] flex items-center justify-center text-2xl flex-shrink-0 transition-colors">{course.icon}</div>
+      <div className="w-12 h-12 rounded-2xl bg-[color:var(--navy-pale)] group-hover:bg-[color:var(--sig-soft)] flex items-center justify-center flex-shrink-0 text-[rgb(32,44,71)] transition-colors"><CourseIcon icon={course.icon} className="w-6 h-6" /></div>
       <div className="min-w-0">
         <h3 className="font-bold text-[rgb(32,44,71)]">{course.name}</h3>
         <p className="text-sm text-gray-400 mt-0.5 truncate">{course.subtitle}</p>

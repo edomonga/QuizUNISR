@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageShell, Card, Alert, Modal, Input, Select, Textarea, Spinner, PageHeader } from '@/components/ui';
 import { Icon, type IconName } from '@/components/Icon';
+import { COURSE_ICONS, CourseIcon } from '@/lib/courseIcons';
 import {
   getAllProfiles, updateProfile, deleteProfile,
   getCourses, upsertCourse, deleteCourse,
@@ -49,7 +50,7 @@ export default function AdminPage() {
 
         {/* Tab bar */}
         <div className="flex gap-1 bg-white rounded-2xl p-1 border border-gray-100 mb-6 shadow-sm overflow-x-auto">
-          {([['users', 'Utenti', 'users'], ['courses', 'Materie', 'book'], ['questions', 'Domande', 'help'], ['reports', 'Segnalazioni', 'flag'], ['feedback', 'Feedback', 'message']] as [Tab, string, IconName][]).map(([t, label, icon]) => (
+          {([['users', 'Utenti', 'users'], ['courses', 'Materie', 'folder'], ['questions', 'Domande', 'list'], ['reports', 'Segnalazioni', 'inbox'], ['feedback', 'Feedback', 'message']] as [Tab, string, IconName][]).map(([t, label, icon]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`flex items-center justify-center gap-1.5 flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${tab === t ? 'bg-[rgb(32,44,71)] text-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
               <Icon name={icon} className="w-4 h-4" />
@@ -232,8 +233,8 @@ function UsersTab() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => openReset(p)}
-                    className="text-xs bg-white border border-blue-200 text-blue-600 font-medium px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors">
-                    🔑 Reset pwd
+                    className="inline-flex items-center gap-1.5 text-xs bg-white border border-blue-200 text-blue-600 font-medium px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                    <Icon name="key" className="w-3.5 h-3.5" />Reset pwd
                   </button>
                   <button
                     onClick={() => toggle(p.id, 'is_admin', !p.is_admin)}
@@ -267,7 +268,7 @@ function UsersTab() {
         <Modal title="Reset password" onClose={() => { setResetModal(null); setResetDone(false); }}>
           {resetDone ? (
             <div className="text-center py-4">
-              <div className="text-4xl mb-3">✅</div>
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><Icon name="check" className="h-7 w-7" strokeWidth={2.4} /></div>
               <p className="font-semibold text-[rgb(32,44,71)] mb-2">Password impostata!</p>
               <p className="text-sm text-gray-500 mb-4">
                 Comunica questa password temporanea a <strong>{resetModal.display_name}</strong>.<br />
@@ -297,8 +298,8 @@ function UsersTab() {
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5">
-                ⚠️ L&apos;utente dovrà cambiare questa password al primo accesso. Comunicagliela privatamente.
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 flex items-start gap-1.5">
+                <Icon name="alert" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /><span>L&apos;utente dovrà cambiare questa password al primo accesso. Comunicagliela privatamente.</span>
               </p>
               <div className="flex gap-3">
                 <button onClick={() => setResetModal(null)}
@@ -513,7 +514,7 @@ function CourseModal({ initial, onClose, onSave }: {
   const [form, setForm] = useState({
     name: initial.name ?? '',
     subtitle: initial.subtitle ?? '',
-    icon: initial.icon ?? '📖',
+    icon: initial.icon ?? 'pulse',
     accent_color: initial.accent_color ?? 'bg-blue-600',
     text_color: initial.text_color ?? 'text-blue-700',
     border_color: initial.border_color ?? 'border-blue-200',
@@ -568,12 +569,12 @@ function CourseModal({ initial, onClose, onSave }: {
   };
 
   const ACCENT_OPTIONS = [
-    { label: '🔵 Blu', accent: 'bg-blue-600', text: 'text-blue-700', border: 'border-blue-200', preview: 'bg-blue-600' },
-    { label: '🟢 Verde', accent: 'bg-emerald-600', text: 'text-emerald-700', border: 'border-emerald-200', preview: 'bg-emerald-600' },
-    { label: '🟣 Viola', accent: 'bg-purple-600', text: 'text-purple-700', border: 'border-purple-200', preview: 'bg-purple-600' },
-    { label: '🔴 Rosso', accent: 'bg-rose-600', text: 'text-rose-700', border: 'border-rose-200', preview: 'bg-rose-600' },
-    { label: '🟠 Arancio', accent: 'bg-orange-500', text: 'text-orange-700', border: 'border-orange-200', preview: 'bg-orange-500' },
-    { label: '🩵 Azzurro', accent: 'bg-cyan-600', text: 'text-cyan-700', border: 'border-cyan-200', preview: 'bg-cyan-600' },
+    { label: 'Blu', accent: 'bg-blue-600', text: 'text-blue-700', border: 'border-blue-200', preview: 'bg-blue-600' },
+    { label: 'Verde', accent: 'bg-emerald-600', text: 'text-emerald-700', border: 'border-emerald-200', preview: 'bg-emerald-600' },
+    { label: 'Viola', accent: 'bg-purple-600', text: 'text-purple-700', border: 'border-purple-200', preview: 'bg-purple-600' },
+    { label: 'Rosso', accent: 'bg-rose-600', text: 'text-rose-700', border: 'border-rose-200', preview: 'bg-rose-600' },
+    { label: 'Arancio', accent: 'bg-orange-500', text: 'text-orange-700', border: 'border-orange-200', preview: 'bg-orange-500' },
+    { label: 'Azzurro', accent: 'bg-cyan-600', text: 'text-cyan-700', border: 'border-cyan-200', preview: 'bg-cyan-600' },
   ];
 
   return (
@@ -581,9 +582,21 @@ function CourseModal({ initial, onClose, onSave }: {
       <div className="space-y-5">
 
         {/* Basic info */}
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Nome materia *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="es. Farmacologia" />
-          <Input label="Icona (emoji)" value={form.icon} onChange={e => setForm(f => ({ ...f, icon: e.target.value }))} placeholder="💊" />
+        <Input label="Nome materia *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="es. Farmacologia" />
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Icona</p>
+          <div className="grid grid-cols-7 gap-2">
+            {COURSE_ICONS.map(({ key, label }) => (
+              <button key={key} type="button" title={label}
+                onClick={() => setForm(f => ({ ...f, icon: key }))}
+                className={`aspect-square flex items-center justify-center rounded-xl border-2 transition-all ${form.icon === key ? 'border-[rgb(32,44,71)] bg-[color:var(--sig-soft)] text-[color:var(--sig)]' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                <Icon name={key} className="w-5 h-5" />
+              </button>
+            ))}
+          </div>
+          {!COURSE_ICONS.some(c => c.key === form.icon) && (
+            <p className="mt-2 text-xs text-gray-400 flex items-center gap-1.5">Icona attuale (legacy): <CourseIcon icon={form.icon} className="w-4 h-4" /> — scegli un'icona sopra per aggiornarla.</p>
+          )}
         </div>
         <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
 
@@ -625,7 +638,7 @@ function CourseModal({ initial, onClose, onSave }: {
 
         {/* Exam rules */}
         <div className="border-t border-gray-100 pt-4">
-          <p className="text-sm font-semibold text-[rgb(32,44,71)] mb-3">⏱️ Regole esame</p>
+          <p className="text-sm font-semibold text-[rgb(32,44,71)] mb-3 flex items-center gap-2"><Icon name="clock" className="w-4 h-4" />Regole esame</p>
           <div className="grid grid-cols-2 gap-3">
             <Input label="Tempo (minuti)" type="number" value={rule.time_limit_seconds / 60} onChange={e => setRule({ time_limit_seconds: +e.target.value * 60 })} min={1} />
             <Select label="Opzioni per domanda" value={rule.options_per_question} onChange={e => setRule({ options_per_question: +e.target.value })}>
@@ -651,7 +664,7 @@ function CourseModal({ initial, onClose, onSave }: {
 
           {rule.exam_type === 'two_phase' && (
             <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
-              <p className="text-xs font-semibold text-amber-800">⚙️ Configura la fase di preselezione</p>
+              <p className="text-xs font-semibold text-amber-800 flex items-center gap-1.5"><Icon name="sliders" className="w-3.5 h-3.5" />Configura la fase di preselezione</p>
               <div className="grid grid-cols-2 gap-2">
                 <Input label="Domande preselezione" type="number" min={1}
                   value={rule.preselection?.questions ?? 15}
@@ -677,8 +690,8 @@ function CourseModal({ initial, onClose, onSave }: {
             {/* Main exam distribution */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-[rgb(32,44,71)]">
-                  {rule.exam_type === 'two_phase' ? '📊 Domande per area — Esame vero' : "📊 Domande per area nell'esame"}
+                <p className="text-sm font-semibold text-[rgb(32,44,71)] flex items-center gap-1.5">
+                  <Icon name="chart" className="w-4 h-4" />{rule.exam_type === 'two_phase' ? 'Domande per area — Esame vero' : "Domande per area nell'esame"}
                 </p>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${distTotal > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
                   Totale: {distTotal}
@@ -703,8 +716,8 @@ function CourseModal({ initial, onClose, onSave }: {
                 ))}
               </div>
               {distTotal > 0 && (
-                <p className="text-xs text-gray-400 mt-2">
-                  💡 Il totale domande dell&apos;esame verrà impostato automaticamente a <strong>{distTotal}</strong>.
+                <p className="text-xs text-gray-400 mt-2 flex items-start gap-1.5">
+                  <Icon name="bulb" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /><span>Il totale domande dell&apos;esame verrà impostato automaticamente a <strong>{distTotal}</strong>.</span>
                 </p>
               )}
             </div>
@@ -713,7 +726,7 @@ function CourseModal({ initial, onClose, onSave }: {
             {rule.exam_type === 'two_phase' && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-amber-800">⚡ Domande per area — Preselezione</p>
+                  <p className="text-sm font-semibold text-amber-800 flex items-center gap-1.5"><Icon name="zap" className="w-3.5 h-3.5" />Domande per area — Preselezione</p>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Object.values(preDistribution).reduce((s,n)=>s+n,0) > 0 ? 'bg-amber-200 text-amber-800' : 'bg-gray-100 text-gray-500'}`}>
                     Totale: {Object.values(preDistribution).reduce((s,n)=>s+n,0)}
                   </span>
@@ -746,8 +759,8 @@ function CourseModal({ initial, onClose, onSave }: {
         )}
 
         {!initial.id && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700">
-            💡 La distribuzione delle domande per area sarà disponibile dopo aver creato la materia e aggiunto le macro-aree.
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 flex items-start gap-1.5">
+            <Icon name="bulb" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /><span>La distribuzione delle domande per area sarà disponibile dopo aver creato la materia e aggiunto le macro-aree.</span>
           </div>
         )}
 
@@ -1213,7 +1226,7 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
 
       {!loading && selectedCourse && filteredQs.length === 0 && (
         <Card className="text-center py-10 text-gray-400">
-          <div className="text-4xl mb-3">📭</div>
+          <Icon name="inbox" className="w-9 h-9 mx-auto mb-3 text-gray-300" />
           <p className="font-medium">Nessuna domanda trovata.</p>
           <p className="text-sm mt-1">Importa un file Excel o aggiungi domande manualmente.</p>
         </Card>
@@ -1321,7 +1334,7 @@ function BulkDeleteModal({ courseName, count, onClose, onConfirm }: {
   };
 
   return (
-    <Modal title="⚠️ Elimina tutte le domande" onClose={onClose}>
+    <Modal title="Elimina tutte le domande" onClose={onClose}>
       <div className="space-y-4">
         <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl">
           <p className="text-sm font-semibold text-red-700 mb-1">Questa azione è irreversibile</p>
@@ -1440,13 +1453,13 @@ function ImportModal({ onClose, onDownloadTemplate, onImport }: {
             <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
             {file ? (
               <>
-                <div className="text-2xl mb-1">✅</div>
+                <Icon name="check" className="w-6 h-6 mb-1 text-emerald-600" strokeWidth={2.4} />
                 <p className="text-sm font-semibold text-emerald-700">{file.name}</p>
                 <p className="text-xs text-emerald-600 mt-0.5">{(file.size / 1024).toFixed(1)} KB — clicca per cambiare</p>
               </>
             ) : (
               <>
-                <div className="text-2xl mb-1">📂</div>
+                <Icon name="upload" className="w-6 h-6 mb-1 text-gray-400" />
                 <p className="text-sm font-medium text-gray-600">Trascina qui il file oppure clicca per selezionarlo</p>
                 <p className="text-xs text-gray-400 mt-0.5">.xlsx o .xls</p>
               </>
@@ -1655,7 +1668,7 @@ const statusLabel: Record<string, string> = {
 
       {!loading && reports.length === 0 && (
         <Card className="text-center py-10 text-gray-400">
-          <div className="text-4xl mb-3">🎉</div>
+          <Icon name="check" className="w-9 h-9 mx-auto mb-3 text-emerald-400" strokeWidth={2.2} />
           <p className="font-medium">Nessuna segnalazione {filter !== 'all' ? 'in questa categoria' : ''}.</p>
         </Card>
       )}
@@ -1728,7 +1741,7 @@ const statusLabel: Record<string, string> = {
           ) : (
             <div className="space-y-4">
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
-                <p className="font-semibold">⚠️ Segnalazione studente:</p>
+                <p className="font-semibold flex items-center gap-1.5"><Icon name="alert" className="w-3.5 h-3.5" />Segnalazione studente:</p>
                 <p>Risposta selezionata: <span className="font-medium text-red-700">{editingReport.selected_answer}</span></p>
                 <p>Risposta indicata corretta: <span className="font-medium text-emerald-700">{editingReport.correct_answer}</span></p>
                 {editingReport.note && <p>Note: <span className="italic">{editingReport.note}</span></p>}

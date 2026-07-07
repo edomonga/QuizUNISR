@@ -324,6 +324,61 @@ export async function updateReportStatus(id: string, status: 'pending' | 'resolv
   return { error: error?.message ?? null };
 }
 
+// ─── Account summary (riepilogo globale su tutte le materie) ──────────────────
+
+export interface AccountCourseStat {
+  course_id: string;
+  course_name: string;
+  accuracy: number;
+  total: number;
+}
+
+export interface AccountSummary {
+  totalQuestions: number;
+  accuracy: number;
+  exams: number;
+  bestScore: number;
+  perCourse: AccountCourseStat[];
+}
+
+export async function getAccountSummary(userId: string): Promise<AccountSummary> {
+  const [{ data: stats }, { data: exams }, courses] = await Promise.all([
+    supabase.from('user_stats').select('course_id, correct, total').eq('user_id', userId),
+    supabase.from('exam_results').select('score_in_30').eq('user_id', userId),
+    getCachedCourses(),
+  ]);
+
+  const rows = (stats ?? []) as { course_id: string; correct: number; total: number }[];
+  const totalQ = rows.reduce((s, x) => s + (x.total ?? 0), 0);
+  const totalC = rows.reduce((s, x) => s + (x.correct ?? 0), 0);
+  const bestScore = (exams ?? []).reduce((m, e: any) => Math.max(m, Number(e.score_in_30) || 0), 0);
+
+  const byCourse = new Map<string, { correct: number; total: number }>();
+  for (const r of rows) {
+    const acc = byCourse.get(r.course_id) ?? { correct: 0, total: 0 };
+    acc.correct += r.correct ?? 0; acc.total += r.total ?? 0;
+    byCourse.set(r.course_id, acc);
+  }
+  const nameOf = new Map(courses.map(c => [c.id, c.name]));
+  const perCourse: AccountCourseStat[] = Array.from(byCourse.entries())
+    .filter(([, v]) => v.total > 0)
+    .map(([course_id, v]) => ({
+      course_id,
+      course_name: nameOf.get(course_id) ?? 'Materia',
+      accuracy: Math.round((v.correct / v.total) * 100),
+      total: v.total,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  return {
+    totalQuestions: totalQ,
+    accuracy: totalQ > 0 ? Math.round((totalC / totalQ) * 100) : 0,
+    exams: (exams ?? []).length,
+    bestScore,
+    perCourse,
+  };
+}
+
 // ─── App feedback ─────────────────────────────────────────────────────────────
 // Feedback generale degli utenti per migliorare l'app (diverso dalle
 // segnalazioni: quelle riguardano una singola domanda, questo l'app in generale).
