@@ -324,6 +324,47 @@ export async function updateReportStatus(id: string, status: 'pending' | 'resolv
   return { error: error?.message ?? null };
 }
 
+// ─── App feedback ─────────────────────────────────────────────────────────────
+// Feedback generale degli utenti per migliorare l'app (diverso dalle
+// segnalazioni: quelle riguardano una singola domanda, questo l'app in generale).
+
+export type FeedbackCategory = 'suggerimento' | 'bug' | 'contenuti' | 'altro';
+
+export interface AppFeedback {
+  id: string;
+  user_id: string;
+  user_name: string;
+  category: FeedbackCategory;
+  message: string;
+  status: 'new' | 'reviewed';
+  created_at: string;
+}
+
+export async function submitFeedback(feedback: {
+  user_id: string;
+  user_name: string;
+  category: FeedbackCategory;
+  message: string;
+}): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('app_feedback').insert(feedback);
+  return { error: error?.message ?? null };
+}
+
+export async function getFeedback(status?: string): Promise<AppFeedback[]> {
+  let q = supabase
+    .from('app_feedback')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (status) q = q.eq('status', status);
+  const { data } = await q;
+  return (data ?? []) as AppFeedback[];
+}
+
+export async function updateFeedbackStatus(id: string, status: 'new' | 'reviewed'): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('app_feedback').update({ status }).eq('id', id);
+  return { error: error?.message ?? null };
+}
+
 // ─── Unseen questions tracking ────────────────────────────────────────────────
 
 export async function getSeenQuestionIds(userId: string, courseId: string): Promise<Set<string>> {

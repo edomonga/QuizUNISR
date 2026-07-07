@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCourses } from '@/lib/db';
 import { PageShell, Card, Spinner } from '@/components/ui';
+import { FeedbackButton } from '@/components/FeedbackButton';
 import type { Course } from '@/types';
 
 export default function DashboardPage() {
@@ -114,6 +115,11 @@ export default function DashboardPage() {
             )}
           </div>
         )}
+
+        {/* Feedback utenti */}
+        <div className="mt-10">
+          <FeedbackButton />
+        </div>
       </div>
     </PageShell>
   );

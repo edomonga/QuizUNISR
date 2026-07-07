@@ -100,6 +100,17 @@ create table if not exists public.exam_results (
   created_at timestamptz not null default now()
 );
 
+-- 8. APP FEEDBACK (feedback generale degli utenti sull'app)
+create table if not exists public.app_feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  user_name text not null default '',
+  category text not null default 'altro',
+  message text not null,
+  status text not null default 'new', -- 'new' | 'reviewed'
+  created_at timestamptz not null default now()
+);
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
@@ -111,6 +122,7 @@ alter table public.topics enable row level security;
 alter table public.questions enable row level security;
 alter table public.user_stats enable row level security;
 alter table public.exam_results enable row level security;
+alter table public.app_feedback enable row level security;
 
 -- Profiles: users read their own, admins read all
 create policy "Users can view own profile" on public.profiles
@@ -197,6 +209,18 @@ create policy "Users can manage own exam results" on public.exam_results
 
 create policy "Admins can read all exam results" on public.exam_results
   for select using (
+    exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true)
+  );
+
+-- App feedback: utenti creano/leggono il proprio, admin leggono e gestiscono tutto
+create policy "Users can insert own feedback" on public.app_feedback
+  for insert with check (auth.uid() = user_id);
+
+create policy "Users can view own feedback" on public.app_feedback
+  for select using (auth.uid() = user_id);
+
+create policy "Admins can manage all feedback" on public.app_feedback
+  for all using (
     exists (select 1 from public.profiles p where p.id = auth.uid() and p.is_admin = true)
   );
 
