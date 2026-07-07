@@ -12,7 +12,8 @@ export type IconName =
   | 'bulb' | 'bug' | 'refresh' | 'award' | 'check' | 'x'
   | 'chevron-right' | 'chevron-left' | 'arrow-right'
   | 'trend-down' | 'zap' | 'chart' | 'clock' | 'square' | 'target'
-  | 'mail' | 'lock' | 'edit' | 'logout' | 'shield';
+  | 'mail' | 'lock' | 'edit' | 'logout' | 'shield'
+  | 'sparkles' | 'alert' | 'trophy' | 'shuffle' | 'dice' | 'file';
 
 const paths: Record<IconName, JSX.Element> = {
   pulse: <path d="M2 12h4l2.5-6L12 18l2.5-8L18 12h4" />,
@@ -46,6 +47,12 @@ const paths: Record<IconName, JSX.Element> = {
   edit: <><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17z" /><path d="M13.5 6.5l3 3" /></>,
   logout: <><path d="M15 12H4" /><path d="M8 8l-4 4 4 4" /><path d="M11 4h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7" /></>,
   shield: <><path d="M12 3l7 3v5.5c0 4.3-3 7.4-7 8.5-4-1.1-7-4.2-7-8.5V6z" /><path d="M9 12l2 2 4-4" /></>,
+  sparkles: <><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7z" /><path d="M18 14l.9 2.1L21 17l-2.1.9L18 20l-.9-2.1L15 17l2.1-.9z" /></>,
+  alert: <><path d="M12 4l9 15.5H3z" /><path d="M12 10v4.5" /><circle cx="12" cy="17.5" r=".7" fill="currentColor" stroke="none" /></>,
+  trophy: <><path d="M7 4h10v4a5 5 0 0 1-10 0z" /><path d="M7 6H4v1a3 3 0 0 0 3 3" /><path d="M17 6h3v1a3 3 0 0 1-3 3" /><path d="M9 15h6" /><path d="M10 15l-.5 4h5l-.5-4" /><path d="M8 21h8" /></>,
+  shuffle: <><path d="M16 3h5v5" /><path d="M4 20L21 3" /><path d="M21 16v5h-5" /><path d="M15 15l6 6" /><path d="M4 4l5 5" /></>,
+  dice: <><rect x="4" y="4" width="16" height="16" rx="3.5" /><circle cx="9" cy="9" r="1" fill="currentColor" stroke="none" /><circle cx="15" cy="15" r="1" fill="currentColor" stroke="none" /><circle cx="15" cy="9" r="1" fill="currentColor" stroke="none" /><circle cx="9" cy="15" r="1" fill="currentColor" stroke="none" /></>,
+  file: <><path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /><path d="M14 3v4h4" /><path d="M9 13h6M9 16.5h4" /></>,
 };
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

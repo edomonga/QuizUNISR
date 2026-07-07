@@ -10,6 +10,7 @@ import {
 } from '@/lib/db';
 import type { WrongQuestionEntry } from '@/lib/db';
 import { PageShell, Card, Spinner, Checkbox, ProgressBar, Modal } from '@/components/ui';
+import { Icon } from '@/components/Icon';
 import type { Course, MacroArea, Topic, Question } from '@/types';
 
 type Phase = 'setup' | 'quiz' | 'results';
@@ -153,20 +154,20 @@ export default function QuizPage() {
             <div className="grid grid-cols-1 gap-2">
               <button onClick={() => setMode('all')}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'all' ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
-                <div className="font-semibold text-sm text-[rgb(32,44,71)]">📚 Tutte le domande</div>
-                <div className="text-xs text-gray-400 mt-0.5">Pescate casualmente dal pool</div>
+                <div className="font-semibold text-sm text-[rgb(32,44,71)] flex items-center gap-2"><Icon name="book" className="w-4 h-4 text-[color:var(--sig)]" />Tutte le domande</div>
+                <div className="text-xs text-gray-400 mt-0.5 ml-6">Pescate casualmente dal pool</div>
               </button>
               <button onClick={() => setMode('unseen')}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'unseen' ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
-                <div className="font-semibold text-sm text-[rgb(32,44,71)]">✨ Solo non viste</div>
-                <div className="text-xs text-gray-400 mt-0.5">
+                <div className="font-semibold text-sm text-[rgb(32,44,71)] flex items-center gap-2"><Icon name="sparkles" className="w-4 h-4 text-[color:var(--sig)]" />Solo non viste</div>
+                <div className="text-xs text-gray-400 mt-0.5 ml-6">
                   {unseenCount ? `${unseenCount.unseen} domande disponibili` : 'Solo domande nuove'}
                 </div>
               </button>
               <button onClick={() => setMode('wrong')}
                 className={`p-3 rounded-xl border-2 text-left transition-all ${mode === 'wrong' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-red-200'}`}>
-                <div className="font-semibold text-sm text-red-700">🔁 Ripassa gli errori</div>
-                <div className="text-xs text-gray-400 mt-0.5">
+                <div className="font-semibold text-sm text-red-700 flex items-center gap-2"><Icon name="refresh" className="w-4 h-4" />Ripassa gli errori</div>
+                <div className="text-xs text-gray-400 mt-0.5 ml-6">
                   {wrongCount > 0 ? `${wrongCount} domande da ripassare` : 'Nessun errore registrato ancora'}
                 </div>
               </button>
@@ -194,8 +195,8 @@ export default function QuizPage() {
             )}
 
             {mode === 'unseen' && unseenCount?.unseen === 0 && (
-              <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 font-medium text-center">
-                🎉 Hai visto tutte le domande! Passa alla modalità "Tutte" per ripassare.
+              <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 font-medium flex items-center justify-center gap-2">
+                <Icon name="check" className="w-4 h-4 flex-shrink-0" />Hai visto tutte le domande! Passa alla modalità "Tutte" per ripassare.
               </div>
             )}
 
@@ -207,7 +208,7 @@ export default function QuizPage() {
             {mode === 'wrong' && wrongCount > 0 && (
               <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-700 space-y-1">
                 <p>Le domande più sbagliate vengono prima.</p>
-                <p>Puoi cliccare <strong>"✅ La so!"</strong> per rimuoverle subito, oppure spariscono da sole dopo <strong>5 risposte corrette di fila</strong>.</p>
+                <p>Puoi cliccare <strong>"La so!"</strong> per rimuoverle subito, oppure spariscono da sole dopo <strong>5 risposte corrette di fila</strong>.</p>
               </div>
             )}
           </Card>
@@ -271,8 +272,10 @@ export default function QuizPage() {
 )}
 
           <button onClick={startQuiz} disabled={!canStart}
-            className={`w-full py-3 text-base rounded-xl font-semibold transition-all disabled:opacity-40 ${isWrongMode ? 'bg-red-500 hover:bg-red-600 text-white' : 'btn-primary'}`}>
-            {isWrongMode ? '🔁 Inizia ripasso errori →' : 'Inizia esercitazione →'}
+            className={`w-full py-3 text-base rounded-xl font-semibold transition-all disabled:opacity-40 flex items-center justify-center gap-2 ${isWrongMode ? 'bg-red-500 hover:bg-red-600 text-white' : 'btn-primary'}`}>
+            {isWrongMode && <Icon name="refresh" className="w-4 h-4" />}
+            {isWrongMode ? 'Inizia ripasso errori' : 'Inizia esercitazione'}
+            <Icon name="arrow-right" className="w-4 h-4" />
           </button>
         </div>
       </PageShell>
@@ -344,18 +347,18 @@ export default function QuizPage() {
 
           <div className="flex items-center gap-2 flex-wrap">
             {mode === 'wrong' && timesWrong > 0 && (
-              <span className="text-xs bg-red-100 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium">
-                ❌ Sbagliata {timesWrong} {timesWrong === 1 ? 'volta' : 'volte'}
+              <span className="inline-flex items-center gap-1 text-xs bg-red-100 text-red-700 border border-red-200 px-2.5 py-1 rounded-full font-medium">
+                <Icon name="x" className="w-3 h-3" />Sbagliata {timesWrong} {timesWrong === 1 ? 'volta' : 'volte'}
               </span>
             )}
             {mode === 'wrong' && consecutiveCorrect > 0 && !alreadyMasteredThisSession && (
-              <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
-                ✅ {consecutiveCorrect}/{MASTERY_THRESHOLD} corrette di fila
+              <span className="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
+                <Icon name="check" className="w-3 h-3" />{consecutiveCorrect}/{MASTERY_THRESHOLD} corrette di fila
               </span>
             )}
             {alreadyMasteredThisSession && (
-              <span className="text-xs bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
-                🏆 Rimossa dall'archivio errori
+              <span className="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-medium">
+                <Icon name="trophy" className="w-3 h-3" />Rimossa dall'archivio errori
               </span>
             )}
             <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-full font-medium">{rawQ.macro_area_name}</span>
@@ -363,7 +366,7 @@ export default function QuizPage() {
           </div>
 
           <Card><p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{rawQ.question_text}</p></Card>
-          {allowMultiple && !answered && <p className="text-xs text-amber-600 font-medium">⚠️ Possono esserci più risposte corrette</p>}
+          {allowMultiple && !answered && <p className="text-xs text-amber-600 font-medium flex items-center gap-1.5"><Icon name="alert" className="w-3.5 h-3.5" />Possono esserci più risposte corrette</p>}
 
           <div className="space-y-2">
             {displayOpts.map((opt: string, idx: number) => {
@@ -392,23 +395,26 @@ export default function QuizPage() {
           {answered && (
             <>
               <div className={`p-3.5 rounded-xl text-sm font-medium border ${isCorrect() ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
-                {isCorrect() ? '✅ Risposta corretta!' : <>❌ Risposta errata. <span className="font-semibold">Corretta/e: {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</span></>}
-                {rawQ.explanation && <p className="mt-1 text-xs opacity-80">{rawQ.explanation}</p>}
+                <div className="flex items-start gap-2">
+                  <Icon name={isCorrect() ? 'check' : 'x'} className="w-4 h-4 mt-0.5 flex-shrink-0" strokeWidth={2.4} />
+                  <span>{isCorrect() ? 'Risposta corretta!' : <>Risposta errata. <span className="font-semibold">Corretta/e: {shuffledCorrect.map(i => displayOpts[i]).join(', ')}</span></>}</span>
+                </div>
+                {rawQ.explanation && <p className="mt-1 text-xs opacity-80 ml-6">{rawQ.explanation}</p>}
               </div>
 
               {/* Pulsante "La so!" — visibile solo in modalità errori, solo se corretta, solo se non già rimossa */}
               {mode === 'wrong' && isCorrect() && !alreadyMasteredThisSession && (
                 <button onClick={handleMastered}
-                  className="w-full py-2.5 rounded-xl border-2 border-emerald-400 bg-emerald-50 text-emerald-700 font-semibold text-sm hover:bg-emerald-100 transition-all">
-                  ✅ La so! Rimuovi dall'archivio errori
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-emerald-400 bg-emerald-50 text-emerald-700 font-semibold text-sm hover:bg-emerald-100 transition-all">
+                  <Icon name="check" className="w-4 h-4" />La so! Rimuovi dall'archivio errori
                 </button>
               )}
 
               <div className="flex gap-2">
-                <button onClick={next} className="btn-primary flex-1">
-                  {cur === quizQs.length - 1 ? 'Vedi risultati' : 'Prossima →'}
+                <button onClick={next} className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {cur === quizQs.length - 1 ? 'Vedi risultati' : <>Prossima <Icon name="arrow-right" className="w-4 h-4" /></>}
                 </button>
-                <button onClick={() => setShowReport(true)} className="btn-secondary px-3" title="Segnala errore">🚩</button>
+                <button onClick={() => setShowReport(true)} className="btn-secondary px-3 flex items-center justify-center" title="Segnala un problema"><Icon name="flag" className="w-4 h-4" /></button>
               </div>
             </>
           )}
@@ -417,7 +423,7 @@ export default function QuizPage() {
             <Modal title="Segnala un problema" onClose={() => { setShowReport(false); setReportNote(''); setReportSent(false); }}>
               {reportSent ? (
                 <div className="text-center py-4">
-                  <div className="text-3xl mb-2">✅</div>
+                  <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><Icon name="check" className="h-6 w-6" strokeWidth={2.4} /></div>
                   <p className="font-medium text-emerald-700">Segnalazione inviata!</p>
                 </div>
               ) : (
@@ -458,7 +464,9 @@ export default function QuizPage() {
     <PageShell courseName={course.name}>
       <div className="max-w-xl mx-auto px-4">
         <Card className="text-center space-y-2">
-          <div className="text-5xl mb-2">{pct === 100 ? '🏆' : pct >= 70 ? '🎉' : pct >= 50 ? '👍' : '📚'}</div>
+          <div className={`mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-2xl ${pct >= 70 ? 'bg-emerald-50 text-emerald-600' : pct >= 50 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
+            <Icon name={pct >= 70 ? 'trophy' : pct >= 50 ? 'zap' : 'refresh'} className="h-8 w-8" strokeWidth={2} />
+          </div>
           <h2 className="text-2xl font-bold text-[rgb(32,44,71)]">
             {mode === 'wrong' ? 'Ripasso completato!' : 'Esercitazione completata!'}
           </h2>
@@ -473,8 +481,8 @@ export default function QuizPage() {
 
           {/* Riepilogo ripasso errori */}
           {mode === 'wrong' && masteredCount > 0 && (
-            <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
-              🏆 Hai rimosso <span className="font-semibold">{masteredCount}</span> {masteredCount === 1 ? 'domanda' : 'domande'} dall'archivio errori!
+            <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 flex items-center justify-center gap-2">
+              <Icon name="trophy" className="w-4 h-4 flex-shrink-0" />Hai rimosso <span className="font-semibold">{masteredCount}</span> {masteredCount === 1 ? 'domanda' : 'domande'} dall'archivio errori!
             </div>
           )}
           {mode === 'wrong' && wrongCount > 0 && (
@@ -483,8 +491,8 @@ export default function QuizPage() {
             </div>
           )}
           {mode === 'wrong' && wrongCount === 0 && (
-            <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 font-medium">
-              🎉 Archivio errori vuoto! Ottimo lavoro!
+            <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 font-medium flex items-center justify-center gap-2">
+              <Icon name="check" className="w-4 h-4 flex-shrink-0" />Archivio errori vuoto! Ottimo lavoro!
             </div>
           )}
 

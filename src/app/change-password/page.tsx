@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { Icon } from '@/components/Icon';
 
 export default function ChangePasswordPage() {
   const { user, loading, refresh } = useAuth();
@@ -67,7 +68,7 @@ export default function ChangePasswordPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[rgb(32,44,71)] to-[rgb(52,69,110)] p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
-          <div className="text-5xl mb-4">✅</div>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><Icon name="check" className="h-8 w-8" strokeWidth={2.4} /></div>
           <h2 className="text-xl font-bold text-[rgb(32,44,71)] mb-2">Password aggiornata!</h2>
           <p className="text-gray-500 text-sm">Reindirizzamento alla dashboard…</p>
         </div>
@@ -79,8 +80,8 @@ export default function ChangePasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[rgb(32,44,71)] to-[rgb(52,69,110)] p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-4">
-            <span className="text-3xl">🔑</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 ring-1 ring-inset ring-white/15 text-[#8FE3DE] mb-4">
+            <Icon name="lock" className="w-8 h-8" />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">UniQuiz</h1>
           <p className="text-blue-200 mt-1 text-sm">Preparazione esami · UniSR</p>

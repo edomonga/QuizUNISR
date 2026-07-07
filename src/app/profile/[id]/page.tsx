@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCourse, getUserStats, getExamResults, getQuestions } from '@/lib/db';
 import { PageShell, Card, Spinner, ProgressBar } from '@/components/ui';
+import { Icon } from '@/components/Icon';
 import type { Course, UserStats, ExamResult, Question } from '@/types';
 
 const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
@@ -79,7 +80,7 @@ export default function ProfilePage() {
         {/* Weak */}
         {weak.length > 0 && (
           <Card className="border-2 border-red-100">
-            <h3 className="font-semibold text-red-600 mb-3 text-sm">📉 Da migliorare</h3>
+            <h3 className="font-semibold text-red-600 mb-3 text-sm flex items-center gap-2"><Icon name="trend-down" className="w-4 h-4" />Da migliorare</h3>
             <div className="space-y-3">
               {weak.map(t => (
                 <div key={t.topic_id} className="flex items-center gap-3">
@@ -103,7 +104,7 @@ export default function ProfilePage() {
         {/* Strong */}
         {strong.length > 0 && (
           <Card className="border-2 border-emerald-100">
-            <h3 className="font-semibold text-emerald-600 mb-3 text-sm">💪 Punti di forza</h3>
+            <h3 className="font-semibold text-emerald-600 mb-3 text-sm flex items-center gap-2"><Icon name="zap" className="w-4 h-4" />Punti di forza</h3>
             <div className="space-y-2">
               {strong.map(t => (
                 <div key={t.topic_id}>
@@ -145,7 +146,12 @@ export default function ProfilePage() {
                 <div key={e.id} className="flex items-center justify-between p-3 bg-[rgb(240,242,247)] rounded-xl text-sm">
                   <div>
                     <div className="font-semibold text-[rgb(32,44,71)]">{new Date(e.created_at).toLocaleDateString('it-IT')}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">✅{e.correct} ❌{e.wrong} ⬜{e.omitted} · {fmt(e.duration_seconds)}</div>
+                    <div className="text-xs text-gray-400 mt-1 flex items-center gap-2.5">
+                      <span className="inline-flex items-center gap-1 text-emerald-600"><Icon name="check" className="w-3 h-3" />{e.correct}</span>
+                      <span className="inline-flex items-center gap-1 text-red-500"><Icon name="x" className="w-3 h-3" />{e.wrong}</span>
+                      <span className="inline-flex items-center gap-1"><Icon name="square" className="w-3 h-3" />{e.omitted}</span>
+                      <span className="inline-flex items-center gap-1"><Icon name="clock" className="w-3 h-3" />{fmt(e.duration_seconds)}</span>
+                    </div>
                   </div>
                   <div className={`text-2xl font-black tabular-nums ${e.score_in_30 >= 27 ? 'text-emerald-500' : e.score_in_30 >= 24 ? 'text-blue-500' : e.score_in_30 >= 18 ? 'text-amber-500' : 'text-red-500'}`}>
                     {e.score_in_30}
@@ -158,7 +164,7 @@ export default function ProfilePage() {
 
         {topicStats.length === 0 && exams.length === 0 && (
           <Card className="text-center py-10 text-gray-400">
-            <div className="text-4xl mb-3">📊</div>
+            <Icon name="chart" className="w-9 h-9 mx-auto mb-3 text-gray-300" />
             <p>Nessuna statistica ancora.<br />Inizia un'esercitazione o un esame!</p>
           </Card>
         )}

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from '@/lib/authHelpers';
 import { useAuth } from '@/contexts/AuthContext';
+import { Icon } from '@/components/Icon';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -26,8 +27,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[rgb(32,44,71)] to-[rgb(52,69,110)] p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-4">
-            <span className="text-3xl">🩺</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 ring-1 ring-inset ring-white/15 text-[#8FE3DE] mb-4">
+            <Icon name="pulse" className="w-8 h-8" strokeWidth={2} />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">UniQuiz</h1>
           <p className="text-blue-200 mt-1 text-sm">Preparazione esami · UniSR</p>

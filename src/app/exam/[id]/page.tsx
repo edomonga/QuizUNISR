@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCourse, pickExamQuestions, recordQuizAnswers, saveExamResult } from '@/lib/db';
 import { PageShell, Card, Spinner, Modal } from '@/components/ui';
+import { Icon } from '@/components/Icon';
 import type { Course, Question, ExamAnswer } from '@/types';
 
 const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
@@ -63,38 +64,39 @@ export default function ExamPage() {
         <Card className="space-y-4">
           <h3 className="font-semibold text-[rgb(32,44,71)]">Regole — {course.name}</h3>
           <div className="space-y-2.5 text-sm text-gray-700">
-            {[
-              ['📝', `${course.exam_rules.total_questions} domande (${course.exam_rules.options_per_question} opzioni ciascuna)`],
-              ['⏱️', `${course.exam_rules.time_limit_seconds / 60} minuti`],
-              ['✅', `+${course.exam_rules.correct_score} risposta corretta`],
-              ['❌', `−${course.exam_rules.wrong_penalty} risposta errata`],
-              ['⬜', `0 risposta omessa`],
+            {([
+              ['file', `${course.exam_rules.total_questions} domande (${course.exam_rules.options_per_question} opzioni ciascuna)`],
+              ['clock', `${course.exam_rules.time_limit_seconds / 60} minuti`],
+              ['check', `+${course.exam_rules.correct_score} risposta corretta`],
+              ['x', `−${course.exam_rules.wrong_penalty} risposta errata`],
+              ['square', `0 risposta omessa`],
               (course.exam_rules.no_navigation
-                ? ['🔒', 'Navigazione bloccata: non si può tornare indietro, conferma richiesta per ogni domanda']
-                : ['🔀', 'Navigazione libera avanti e indietro']),
-              ['🎲', 'Le opzioni vengono mescolate ad ogni esame'],
-              ...(course.exam_rules.allow_multiple_correct ? [['⚠️', 'Alcune domande potrebbero avere più risposte corrette']] : []),
-            ].map(([icon, text]) => (
-              <div key={text as string} className="flex items-start gap-2.5">
-                <span className="flex-shrink-0">{icon}</span>
+                ? ['lock', 'Navigazione bloccata: non si può tornare indietro, conferma richiesta per ogni domanda']
+                : ['shuffle', 'Navigazione libera avanti e indietro']),
+              ['dice', 'Le opzioni vengono mescolate ad ogni esame'],
+              ...(course.exam_rules.allow_multiple_correct ? [['alert', 'Alcune domande potrebbero avere più risposte corrette']] : []),
+            ] as [import('@/components/Icon').IconName, string][]).map(([icon, text]) => (
+              <div key={text} className="flex items-start gap-2.5">
+                <Icon name={icon} className="w-4 h-4 mt-0.5 flex-shrink-0 text-[color:var(--sig)]" />
                 <span>{text}</span>
               </div>
             ))}
           </div>
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-            ⚠️ Il timer parte subito. L'esame si chiude automaticamente allo scadere del tempo.
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-start gap-2">
+            <Icon name="alert" className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <span>Il timer parte subito. L'esame si chiude automaticamente allo scadere del tempo.</span>
           </div>
         </Card>
         {course.exam_rules.exam_type === 'two_phase' && course.exam_rules.preselection && (
           <Card className="border-2 border-amber-200">
-            <h3 className="font-semibold text-amber-800 mb-3">⚡ Struttura bifasica</h3>
+            <h3 className="font-semibold text-amber-800 mb-3 flex items-center gap-2"><Icon name="zap" className="w-4 h-4" />Struttura bifasica</h3>
             <div className="space-y-2 text-sm text-gray-700">
               <div className="flex items-start gap-2.5">
-                <span className="flex-shrink-0">1️⃣</span>
+                <span className="flex-shrink-0 w-5 h-5 rounded-md bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">1</span>
                 <span><strong>Preselezione:</strong> {course.exam_rules.preselection.questions} domande in {course.exam_rules.preselection.time_limit_seconds / 60} minuti. Puoi sbagliare al massimo {course.exam_rules.preselection.max_errors} domanda/e per accedere all'esame.</span>
               </div>
               <div className="flex items-start gap-2.5">
-                <span className="flex-shrink-0">2️⃣</span>
+                <span className="flex-shrink-0 w-5 h-5 rounded-md bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center">2</span>
                 <span><strong>Esame:</strong> {course.exam_rules.total_questions} domande in {course.exam_rules.time_limit_seconds / 60} minuti, con le regole di punteggio indicate sopra.</span>
               </div>
             </div>
@@ -198,15 +200,34 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
       <PageShell courseName={course.name}>
         <div className="max-w-3xl mx-auto px-4 space-y-4">
           <Card className="text-center">
-            <div className="text-4xl mb-2">
-              {results.scoreIn30 >= 27 ? '🏆' : results.scoreIn30 >= 24 ? '🎓' : results.scoreIn30 >= 18 ? '👍' : '📚'}
-            </div>
-            <h2 className="text-xl font-bold text-[rgb(32,44,71)]">Esame completato</h2>
-            <div className="mt-4 inline-block bg-[rgb(32,44,71)] rounded-2xl px-10 py-5 text-white">
-              <div className="text-5xl font-black">{results.scoreIn30}</div>
-              <div className="text-blue-200 text-sm">su 30</div>
-            </div>
-            <div className="grid grid-cols-3 gap-3 mt-4">
+            {(() => {
+              const s = results.scoreIn30;
+              const passed = s >= 18;
+              const color = s >= 27 ? '#0F9D63' : s >= 24 ? '#2F6FD8' : s >= 18 ? '#C97E1B' : '#E5484D';
+              const C = 2 * Math.PI * 54;
+              const off = C * (1 - Math.max(0, Math.min(30, s)) / 30);
+              return (
+                <>
+                  <p className="text-[10.5px] font-bold uppercase tracking-widest text-[color:var(--sig)] mb-1">Esame · {course.name}</p>
+                  <div className="relative w-[150px] h-[150px] mx-auto my-2">
+                    <svg width="150" height="150" viewBox="0 0 130 130" className="-rotate-90">
+                      <circle cx="65" cy="65" r="54" fill="none" stroke="rgb(226,231,240)" strokeWidth="12" />
+                      <circle cx="65" cy="65" r="54" fill="none" stroke={color} strokeWidth="12" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off} />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-[34px] font-extrabold text-[rgb(32,44,71)] leading-none tabular-nums">{s}</span>
+                      <span className="text-xs text-gray-400 font-semibold">/ 30</span>
+                    </div>
+                  </div>
+                  <p className="text-lg font-extrabold flex items-center justify-center gap-2" style={{ color }}>
+                    <Icon name={passed ? 'award' : 'refresh'} className="w-5 h-5" strokeWidth={2} />
+                    {passed ? 'Esame superato' : 'Non superato'}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">{passed ? 'Sei sopra la soglia di 18/30.' : 'Serve almeno 18/30 — riprova!'}</p>
+                </>
+              );
+            })()}
+            <div className="grid grid-cols-3 gap-3 mt-5">
               <div className="p-3 bg-emerald-50 rounded-xl">
                 <div className="text-xl font-bold text-emerald-600">{results.correct}</div>
                 <div className="text-xs text-emerald-600 mt-0.5">Corrette<br /><span className="text-gray-400">(+{results.correct * rule.correct_score})</span></div>
@@ -227,7 +248,7 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
 
           <button onClick={() => setShowReview(v => !v)}
             className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-200 hover:border-[rgb(32,44,71)] transition-colors font-semibold text-[rgb(32,44,71)] text-sm">
-            <span>📋 Revisione completa ({qs.length} domande)</span>
+            <span className="flex items-center gap-2"><Icon name="book" className="w-4 h-4 text-[color:var(--sig)]" />Revisione completa ({qs.length} domande)</span>
             <svg className={`w-5 h-5 flex-shrink-0 transition-transform ${showReview ? 'rotate-180' : ''}`}
               fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -243,8 +264,9 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
                 return (
                   <div key={q.id} className={`rounded-2xl border-2 overflow-hidden ${isCorrect ? 'border-emerald-300' : isOmitted ? 'border-gray-200' : 'border-red-300'}`}>
                     <div className={`flex items-center justify-between px-4 py-2.5 text-xs font-medium ${isCorrect ? 'bg-emerald-50 text-emerald-700' : isOmitted ? 'bg-gray-50 text-gray-500' : 'bg-red-50 text-red-700'}`}>
-                      <span className="font-semibold">
-                        {isCorrect ? '✅ Corretta' : isOmitted ? '⬜ Omessa' : '❌ Errata'} — D{i + 1}
+                      <span className="font-semibold inline-flex items-center gap-1.5">
+                        <Icon name={isCorrect ? 'check' : isOmitted ? 'square' : 'x'} className="w-3.5 h-3.5" />
+                        {isCorrect ? 'Corretta' : isOmitted ? 'Omessa' : 'Errata'} — D{i + 1}
                       </span>
                       <span className="text-xs opacity-70">{q.macro_area_name}</span>
                     </div>
@@ -297,7 +319,7 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
   return (
     <div className="flex h-screen overflow-hidden flex-col">
       <nav className="bg-[rgb(32,44,71)] text-white h-14 px-4 flex items-center justify-between flex-shrink-0">
-        <span className="font-bold text-base truncate min-w-0 flex-1">🩺 UniQuiz · {course.name}</span>
+        <span className="font-bold text-base truncate min-w-0 flex-1 flex items-center gap-2"><Icon name="pulse" className="w-4 h-4 flex-shrink-0 text-[#8FE3DE]" strokeWidth={2} />UniQuiz · {course.name}</span>
         <div className="flex items-center gap-3 flex-shrink-0">
           <span className={`text-lg font-black tabular-nums ${warn ? 'text-red-400' : 'text-white'}`}>{fmt(timeLeft)}</span>
           <button onClick={submit} className="bg-white text-[rgb(32,44,71)] rounded-xl px-3 py-1.5 text-xs font-bold hover:bg-blue-50">
@@ -345,8 +367,8 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
             </div>
 
             {rule.allow_multiple_correct && (
-              <p className="text-xs text-amber-600 font-medium">
-                ⚠️ Possono esserci più risposte corrette — seleziona tutte quelle che ritieni corrette
+              <p className="text-xs text-amber-600 font-medium flex items-center gap-1.5">
+                <Icon name="alert" className="w-3.5 h-3.5 flex-shrink-0" />Possono esserci più risposte corrette — seleziona tutte quelle che ritieni corrette
               </p>
             )}
 
@@ -552,7 +574,7 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
       <PageShell courseName={course.name}>
         <div className="max-w-lg mx-auto px-4">
           <div className="card text-center">
-            <div className="text-5xl mb-4">❌</div>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-500"><Icon name="x" className="h-8 w-8" strokeWidth={2.2} /></div>
             <h2 className="text-2xl font-bold text-[rgb(32,44,71)]">Preselezione non superata</h2>
             <div className="mt-4 p-5 bg-red-50 border border-red-200 rounded-2xl">
               <p className="text-red-700 font-medium">Hai commesso <strong>{wrong}</strong> errori.</p>
@@ -580,17 +602,18 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
       <PageShell courseName={course.name}>
         <div className="max-w-lg mx-auto px-4">
           <div className="card text-center">
-            <div className="text-5xl mb-4">🎉</div>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><Icon name="check" className="h-8 w-8" strokeWidth={2.4} /></div>
             <h2 className="text-2xl font-bold text-[rgb(32,44,71)]">Preselezione superata!</h2>
             <div className="mt-4 p-5 bg-emerald-50 border border-emerald-200 rounded-2xl">
               <p className="text-emerald-700 font-medium">Errori commessi: <strong>{wrong}</strong> su {pre.questions} domande</p>
               <p className="text-emerald-600 text-sm mt-1">Sei ammesso all'esame ✓</p>
             </div>
-            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-              ⚠️ L'esame ha {rule.total_questions} domande e {rule.time_limit_seconds / 60} minuti. Il timer parte subito.
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-start gap-2">
+              <Icon name="alert" className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>L'esame ha {rule.total_questions} domande e {rule.time_limit_seconds / 60} minuti. Il timer parte subito.</span>
             </div>
-            <button onClick={startMainExam} className="btn-primary w-full mt-5 py-3 text-base">
-              Inizia l'esame →
+            <button onClick={startMainExam} className="btn-primary w-full mt-5 py-3 text-base flex items-center justify-center gap-2">
+              Inizia l'esame <Icon name="arrow-right" className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -605,13 +628,33 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
       <PageShell courseName={course.name}>
         <div className="max-w-3xl mx-auto px-4 space-y-4">
           <Card className="text-center">
-            <div className="text-4xl mb-2">{mainResults.scoreIn30 >= 27 ? '🏆' : mainResults.scoreIn30 >= 24 ? '🎓' : mainResults.scoreIn30 >= 18 ? '👍' : '📚'}</div>
-            <h2 className="text-xl font-bold text-[rgb(32,44,71)]">Esame completato</h2>
-            <div className="mt-4 inline-block bg-[rgb(32,44,71)] rounded-2xl px-10 py-5 text-white">
-              <div className="text-5xl font-black">{mainResults.scoreIn30}</div>
-              <div className="text-blue-200 text-sm">su 30</div>
-            </div>
-            <div className="grid grid-cols-3 gap-3 mt-4">
+            {(() => {
+              const s = mainResults.scoreIn30;
+              const passed = s >= 18;
+              const color = s >= 27 ? '#0F9D63' : s >= 24 ? '#2F6FD8' : s >= 18 ? '#C97E1B' : '#E5484D';
+              const C = 2 * Math.PI * 54;
+              const off = C * (1 - Math.max(0, Math.min(30, s)) / 30);
+              return (
+                <>
+                  <p className="text-[10.5px] font-bold uppercase tracking-widest text-[color:var(--sig)] mb-1">Esame · {course.name}</p>
+                  <div className="relative w-[150px] h-[150px] mx-auto my-2">
+                    <svg width="150" height="150" viewBox="0 0 130 130" className="-rotate-90">
+                      <circle cx="65" cy="65" r="54" fill="none" stroke="rgb(226,231,240)" strokeWidth="12" />
+                      <circle cx="65" cy="65" r="54" fill="none" stroke={color} strokeWidth="12" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={off} />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-[34px] font-extrabold text-[rgb(32,44,71)] leading-none tabular-nums">{s}</span>
+                      <span className="text-xs text-gray-400 font-semibold">/ 30</span>
+                    </div>
+                  </div>
+                  <p className="text-lg font-extrabold flex items-center justify-center gap-2" style={{ color }}>
+                    <Icon name={passed ? 'award' : 'refresh'} className="w-5 h-5" strokeWidth={2} />
+                    {passed ? 'Esame superato' : 'Non superato'}
+                  </p>
+                </>
+              );
+            })()}
+            <div className="grid grid-cols-3 gap-3 mt-5">
               <div className="p-3 bg-emerald-50 rounded-xl"><div className="text-xl font-bold text-emerald-600">{mainResults.correct}</div><div className="text-xs text-emerald-600 mt-0.5">Corrette<br/><span className="text-gray-400">(+{mainResults.correct})</span></div></div>
               <div className="p-3 bg-red-50 rounded-xl"><div className="text-xl font-bold text-red-500">{mainResults.wrong}</div><div className="text-xs text-red-500 mt-0.5">Errate<br/><span className="text-gray-400">(−{(mainResults.wrong * rule.wrong_penalty).toFixed(1)})</span></div></div>
               <div className="p-3 bg-gray-50 rounded-xl"><div className="text-xl font-bold text-gray-500">{mainResults.omitted}</div><div className="text-xs text-gray-400 mt-0.5">Omesse<br/>(0)</div></div>
@@ -621,7 +664,7 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
 
           <button onClick={() => setShowReview(v => !v)}
             className="w-full flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-200 hover:border-[rgb(32,44,71)] transition-colors font-semibold text-[rgb(32,44,71)] text-sm">
-            <span>📋 Revisione completa ({mainQs.length} domande)</span>
+            <span className="flex items-center gap-2"><Icon name="book" className="w-4 h-4 text-[color:var(--sig)]" />Revisione completa ({mainQs.length} domande)</span>
             <svg className={`w-5 h-5 flex-shrink-0 transition-transform ${showReview ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
           </button>
 
@@ -634,7 +677,7 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
                 return (
                   <div key={q.id} className={`rounded-2xl border-2 overflow-hidden ${isCorrect ? 'border-emerald-300' : isOmitted ? 'border-gray-200' : 'border-red-300'}`}>
                     <div className={`flex items-center justify-between px-4 py-2.5 text-xs font-medium ${isCorrect ? 'bg-emerald-50 text-emerald-700' : isOmitted ? 'bg-gray-50 text-gray-500' : 'bg-red-50 text-red-700'}`}>
-                      <span className="font-semibold">{isCorrect ? '✅ Corretta' : isOmitted ? '⬜ Omessa' : '❌ Errata'} — D{i + 1}</span>
+                      <span className="font-semibold inline-flex items-center gap-1.5"><Icon name={isCorrect ? 'check' : isOmitted ? 'square' : 'x'} className="w-3.5 h-3.5" />{isCorrect ? 'Corretta' : isOmitted ? 'Omessa' : 'Errata'} — D{i + 1}</span>
                     </div>
                     <div className="bg-white px-4 py-3">
                       <p className="text-sm font-semibold text-[rgb(32,44,71)] leading-relaxed mb-3">{q.question_text}</p>
@@ -686,7 +729,7 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
       <div className="flex h-screen flex-col overflow-hidden">
         <nav className="bg-[rgb(32,44,71)] text-white h-14 px-4 flex items-center justify-between flex-shrink-0">
           <div className="min-w-0 flex-1 flex items-center gap-2">
-            <span className="font-bold text-base truncate">🩺 {course.name}</span>
+            <span className="font-bold text-base truncate flex items-center gap-2"><Icon name="pulse" className="w-4 h-4 flex-shrink-0 text-[#8FE3DE]" strokeWidth={2} />{course.name}</span>
             <span className="text-xs bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">PRESELEZIONE</span>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -697,7 +740,7 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-2xl mx-auto space-y-4">
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
-              ⚡ Fase di preselezione: puoi sbagliare al massimo {pre.max_errors} domanda/e per accedere all'esame.
+              <span className="inline-flex items-center gap-1.5"><Icon name="zap" className="w-3.5 h-3.5 flex-shrink-0" />Fase di preselezione: puoi sbagliare al massimo {pre.max_errors} domanda/e per accedere all'esame</span>.
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400 tabular-nums">Domanda {preCur + 1} di {preQs.length}</span>
@@ -764,7 +807,7 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
   return (
     <div className="flex h-screen overflow-hidden flex-col">
       <nav className="bg-[rgb(32,44,71)] text-white h-14 px-4 flex items-center justify-between flex-shrink-0">
-        <span className="font-bold text-base truncate min-w-0 flex-1">🩺 {course.name} — Esame</span>
+        <span className="font-bold text-base truncate min-w-0 flex-1 flex items-center gap-2"><Icon name="pulse" className="w-4 h-4 flex-shrink-0 text-[#8FE3DE]" strokeWidth={2} />{course.name} — Esame</span>
         <div className="flex items-center gap-3 flex-shrink-0">
           <span className={`text-lg font-black tabular-nums ${warn ? 'text-red-400' : 'text-white'}`}>{fmt(mainTimeLeft)}</span>
           <button onClick={submitMain} className="bg-white text-[rgb(32,44,71)] rounded-xl px-3 py-1.5 text-xs font-bold hover:bg-blue-50">Consegna</button>

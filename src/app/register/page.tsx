@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { signUp, isAllowedEmail } from '@/lib/authHelpers';
+import { Icon } from '@/components/Icon';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -41,7 +42,7 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[rgb(32,44,71)] to-[rgb(52,69,110)] p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
-          <div className="text-5xl mb-4">📬</div>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[color:var(--sig-soft)] text-[color:var(--sig)]"><Icon name="mail" className="h-8 w-8" /></div>
           <h2 className="text-xl font-bold text-[rgb(32,44,71)] mb-3">Registrazione completata!</h2>
           <p className="text-gray-600 text-sm leading-relaxed">
             Ti abbiamo inviato una email di conferma a <strong>{email}</strong>.<br /><br />
@@ -60,8 +61,8 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[rgb(32,44,71)] to-[rgb(52,69,110)] p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-4">
-            <span className="text-3xl">🩺</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 ring-1 ring-inset ring-white/15 text-[#8FE3DE] mb-4">
+            <Icon name="pulse" className="w-8 h-8" strokeWidth={2} />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">UniQuiz</h1>
         </div>
@@ -95,10 +96,10 @@ export default function RegisterPage() {
                 placeholder="nome@studenti.unisr.it" required
               />
               {email && !isAllowedEmail(email) && (
-                <p className="text-xs text-red-500 mt-1">⚠️ Usa il tuo indirizzo @studenti.unisr.it</p>
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><Icon name="alert" className="w-3 h-3" />Usa il tuo indirizzo @studenti.unisr.it</p>
               )}
               {email && isAllowedEmail(email) && (
-                <p className="text-xs text-emerald-600 mt-1">✓ Indirizzo valido</p>
+                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Icon name="check" className="w-3 h-3" />Indirizzo valido</p>
               )}
             </div>
             <div>
