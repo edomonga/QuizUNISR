@@ -41,7 +41,29 @@ export function isImageIcon(value?: string): boolean {
  *  - l'emoji legacy salvata nel DB.
  */
 export function CourseIcon({ icon, className = 'w-6 h-6' }: { icon?: string; className?: string }) {
-  if (isImageIcon(icon)) return <img src={icon} alt="" className={`${className} object-contain`} />;
+  // Immagine caricata → resa come maschera con `currentColor`, così eredita il
+  // colore dal contesto esattamente come le icone del catalogo (teal sul banner
+  // scuro, navy sulle tile, grigio per «in arrivo»).
+  if (isImageIcon(icon)) {
+    return (
+      <span
+        role="img"
+        aria-hidden="true"
+        className={`${className} inline-block flex-shrink-0`}
+        style={{
+          backgroundColor: 'currentColor',
+          WebkitMaskImage: `url("${icon}")`,
+          maskImage: `url("${icon}")`,
+          WebkitMaskRepeat: 'no-repeat',
+          maskRepeat: 'no-repeat',
+          WebkitMaskPosition: 'center',
+          maskPosition: 'center',
+          WebkitMaskSize: 'contain',
+          maskSize: 'contain',
+        }}
+      />
+    );
+  }
   if (isCourseIconKey(icon)) return <Icon name={icon} className={className} />;
   return <span className="text-[22px] leading-none">{icon || '📘'}</span>;
 }
