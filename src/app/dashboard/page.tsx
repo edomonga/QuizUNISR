@@ -6,6 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getCourses } from '@/lib/db';
 import { PageShell, Card, Spinner } from '@/components/ui';
 import { FeedbackButton } from '@/components/FeedbackButton';
+import { Icon } from '@/components/Icon';
+import { CourseIcon } from '@/lib/courseIcons';
 import type { Course } from '@/types';
 
 export default function DashboardPage() {
@@ -68,7 +70,7 @@ export default function DashboardPage() {
 
         {!hasAnyCourse ? (
           <Card className="text-center py-12 text-gray-400">
-            <div className="text-4xl mb-3">📚</div>
+            <Icon name="book" className="w-9 h-9 mx-auto mb-3 text-gray-300" />
             <p className="font-medium">Nessuna materia disponibile al momento.</p>
             {user.is_admin && (
               <Link href="/admin/courses" className="btn-primary inline-block mt-4 text-sm">
@@ -85,7 +87,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[rgb(32,44,71)] text-white text-sm font-bold flex-shrink-0">
                     {year}
                   </div>
-                  <h3 className="text-base font-semibold text-[rgb(32,44,71)]">Anno {year}</h3>
+                  <h3 className="text-base font-semibold text-[rgb(32,44,71)]">{year}° Anno</h3>
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -128,15 +130,14 @@ export default function DashboardPage() {
 function CourseCard({ course }: { course: Course }) {
   if (!course.is_available) {
     return (
-      <div className="relative rounded-2xl border-2 border-gray-100 bg-gray-50 p-5 opacity-60 cursor-not-allowed">
-        <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-2xl ${course.accent_color} opacity-30`} />
-        <div className="flex items-start gap-4 mt-1">
-          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0">{course.icon}</div>
-          <div>
+      <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 opacity-70 cursor-not-allowed">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-400 grayscale opacity-70"><CourseIcon icon={course.icon} className="w-6 h-6" /></div>
+          <div className="min-w-0">
             <h3 className="font-bold text-gray-500">{course.name}</h3>
-            <p className="text-sm text-gray-400 mt-0.5">{course.subtitle}</p>
-            <span className="inline-block mt-2 text-xs font-medium bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">In arrivo</span>
+            <p className="text-sm text-gray-400 mt-0.5 truncate">{course.subtitle}</p>
           </div>
+          <span className="ml-auto flex-shrink-0 text-xs font-medium bg-gray-200 text-gray-500 px-2.5 py-1 rounded-full">In arrivo</span>
         </div>
       </div>
     );
@@ -144,15 +145,13 @@ function CourseCard({ course }: { course: Course }) {
 
   return (
     <Link href={`/course/${course.id}`}
-      className="group relative rounded-2xl border-2 border-gray-100 bg-white p-5 hover:shadow-lg hover:scale-[1.02] hover:border-[rgb(32,44,71)] transition-all duration-200 cursor-pointer">
-      <div className={`absolute top-0 left-0 right-0 h-1 rounded-t-2xl ${course.accent_color}`} />
-      <div className="flex items-start gap-4 mt-1">
-        <div className="w-12 h-12 rounded-2xl bg-gray-50 group-hover:bg-gray-100 flex items-center justify-center text-2xl flex-shrink-0 transition-colors">{course.icon}</div>
-        <div>
-          <h3 className="font-bold text-[rgb(32,44,71)]">{course.name}</h3>
-          <p className="text-sm text-gray-400 mt-0.5">{course.subtitle}</p>
-        </div>
+      className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm hover:-translate-y-0.5 hover:shadow-lg hover:border-[color:var(--sig)] transition-all duration-200 cursor-pointer">
+      <div className="w-12 h-12 rounded-2xl bg-[color:var(--navy-pale)] group-hover:bg-[color:var(--sig-soft)] flex items-center justify-center flex-shrink-0 text-[rgb(32,44,71)] transition-colors"><CourseIcon icon={course.icon} className="w-6 h-6" /></div>
+      <div className="min-w-0">
+        <h3 className="font-bold text-[rgb(32,44,71)]">{course.name}</h3>
+        <p className="text-sm text-gray-400 mt-0.5 truncate">{course.subtitle}</p>
       </div>
+      <Icon name="chevron-right" className="w-5 h-5 ml-auto flex-shrink-0 text-gray-300 group-hover:text-[color:var(--sig)] transition-colors" />
     </Link>
   );
 }

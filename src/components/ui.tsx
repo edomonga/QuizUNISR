@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { signOut } from '@/lib/authHelpers';
 import { useRouter, usePathname } from 'next/navigation';
+import { Icon } from '@/components/Icon';
 
 // ─── TopNav ───────────────────────────────────────────────────────────────────
 
@@ -18,23 +19,27 @@ export function TopNav({ courseName }: { courseName?: string }) {
   };
 
   return (
-    <nav className="bg-[rgb(32,44,71)] text-white h-14 px-4 flex items-center justify-between sticky top-0 z-50 shadow-md flex-shrink-0">
-      <Link href="/dashboard" className="flex items-center gap-2 font-bold text-base hover:opacity-80 transition-opacity">
-        <span className="text-lg">🩺</span>
+    <nav className="nav-grad text-white h-14 px-4 flex items-center justify-between sticky top-0 z-50 shadow-md flex-shrink-0">
+      <Link href="/dashboard" className="flex items-center gap-2.5 font-bold text-base hover:opacity-90 transition-opacity">
+        <span className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center ring-1 ring-inset ring-white/15 text-[#8FE3DE]">
+          <Icon name="pulse" className="w-[18px] h-[18px]" strokeWidth={2} />
+        </span>
         <span>UniQuiz</span>
-        {courseName && <span className="hidden sm:inline text-blue-300 font-normal text-sm">· {courseName}</span>}
+        {courseName && <span className="hidden sm:inline text-[#8FE3DE] font-normal text-sm">· {courseName}</span>}
       </Link>
       <div className="flex items-center gap-3">
         {user?.is_admin && (
-          <Link href="/admin" className="p-1.5 rounded-lg hover:bg-white/10 transition-colors" title="Admin">
-            <svg className="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+          <Link href="/admin" className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-[#8FE3DE]" title="Pannello Admin">
+            <Icon name="sliders" className="w-[18px] h-[18px]" />
           </Link>
         )}
-        <span className="text-blue-200 text-sm hidden sm:block">{user?.display_name}</span>
-        <button onClick={handleLogout} className="text-blue-300 hover:text-white text-xs font-medium transition-colors px-2 py-1 rounded-lg hover:bg-white/10">
+        <Link href="/account" title="Il tuo account" className="flex items-center gap-2 pl-1 pr-1 py-1 rounded-lg hover:bg-white/10 transition-colors">
+          <span className="text-blue-100/80 text-sm hidden sm:block">{user?.display_name}</span>
+          <span className="w-7 h-7 rounded-full bg-white/10 ring-1 ring-inset ring-white/15 text-[#8FE3DE] flex items-center justify-center">
+            <Icon name="user" className="w-[15px] h-[15px]" />
+          </span>
+        </Link>
+        <button onClick={handleLogout} className="text-[#8FE3DE] hover:text-white text-xs font-semibold transition-colors px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10">
           Esci
         </button>
       </div>

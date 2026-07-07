@@ -5,6 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCourse, getUserStats, getExamResults } from '@/lib/db';
 import { PageShell, Card, Spinner, ProgressBar } from '@/components/ui';
+import { Icon } from '@/components/Icon';
+import { CourseIcon } from '@/lib/courseIcons';
 import type { Course, UserStats, ExamResult } from '@/types';
 
 function fmt(s: number) {
@@ -58,11 +60,10 @@ export default function CoursePage() {
       <div className="max-w-3xl mx-auto px-4 space-y-5">
 
         {/* Banner */}
-        <div className="relative overflow-hidden rounded-2xl bg-[rgb(32,44,71)] text-white p-6">
-          <div className={`absolute top-0 left-0 right-0 h-1 ${course.accent_color}`} />
+        <div className="relative overflow-hidden rounded-2xl nav-grad text-white p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-2xl mb-1">{course.icon}</div>
+              <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-[#8FE3DE] mb-2"><CourseIcon icon={course.icon} className="w-6 h-6" /></div>
               <h2 className="text-xl font-bold">{course.name}</h2>
               <p className="text-blue-200 text-xs mt-0.5">{course.subtitle}</p>
             </div>
@@ -151,7 +152,12 @@ export default function CoursePage() {
                 <div key={e.id} className="flex items-center justify-between p-3 bg-[rgb(240,242,247)] rounded-xl text-sm">
                   <div>
                     <div className="font-semibold text-[rgb(32,44,71)]">{new Date(e.created_at).toLocaleDateString('it-IT')}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">✅{e.correct} ❌{e.wrong} ⬜{e.omitted} · {fmt(e.duration_seconds)}</div>
+                    <div className="text-xs text-gray-400 mt-1 flex items-center gap-2.5">
+                      <span className="inline-flex items-center gap-1 text-emerald-600"><Icon name="check" className="w-3 h-3" />{e.correct}</span>
+                      <span className="inline-flex items-center gap-1 text-red-500"><Icon name="x" className="w-3 h-3" />{e.wrong}</span>
+                      <span className="inline-flex items-center gap-1"><Icon name="square" className="w-3 h-3" />{e.omitted}</span>
+                      <span className="inline-flex items-center gap-1"><Icon name="clock" className="w-3 h-3" />{fmt(e.duration_seconds)}</span>
+                    </div>
                   </div>
                   <div className={`text-2xl font-black tabular-nums ${e.score_in_30 >= 27 ? 'text-emerald-500' : e.score_in_30 >= 24 ? 'text-blue-500' : e.score_in_30 >= 18 ? 'text-amber-500' : 'text-red-500'}`}>
                     {e.score_in_30}
