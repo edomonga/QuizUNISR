@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { PageShell, Card, Alert, Modal, Input, Select, Textarea, Spinner, PageHeader } from '@/components/ui';
 import { Icon, type IconName } from '@/components/Icon';
-import { COURSE_ICONS, CourseIcon } from '@/lib/courseIcons';
+import { COURSE_ICONS, CourseIcon, isImageIcon } from '@/lib/courseIcons';
 import {
   getAllProfiles, updateProfile, deleteProfile,
   getCourses, upsertCourse, deleteCourse,
@@ -363,7 +363,7 @@ function CoursesTab() {
         <Card key={course.id}>
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">{course.icon}</span>
+              <span className="w-9 h-9 rounded-lg bg-[color:var(--navy-pale)] flex items-center justify-center text-[rgb(32,44,71)] flex-shrink-0"><CourseIcon icon={course.icon} className="w-5 h-5" /></span>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-[rgb(32,44,71)]">{course.name}</h3>
@@ -526,6 +526,17 @@ function CourseModal({ initial, onClose, onSave }: {
   const [courseAreas, setCourseAreas] = useState<MacroArea[]>([]);
   const [distribution, setDistribution] = useState<Record<string, number>>(initial.exam_rules?.distribution ?? {});
   const [preDistribution, setPreDistribution] = useState<Record<string, number>>(initial.exam_rules?.preselection?.distribution ?? {});
+  const [iconError, setIconError] = useState('');
+
+  const handleIconUpload = (file: File) => {
+    setIconError('');
+    if (!file.type.startsWith('image/')) { setIconError('Formato non valido: usa PNG, SVG, JPG o WebP.'); return; }
+    if (file.size > 40 * 1024) { setIconError('Icona troppo grande (max 40 KB). Usa un\'immagine più piccola o un SVG.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => setForm(f => ({ ...f, icon: String(reader.result) }));
+    reader.onerror = () => setIconError('Impossibile leggere il file. Riprova.');
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (initial.id) {
@@ -594,9 +605,21 @@ function CourseModal({ initial, onClose, onSave }: {
               </button>
             ))}
           </div>
-          {!COURSE_ICONS.some(c => c.key === form.icon) && (
-            <p className="mt-2 text-xs text-gray-400 flex items-center gap-1.5">Icona attuale (legacy): <CourseIcon icon={form.icon} className="w-4 h-4" /> — scegli un'icona sopra per aggiornarla.</p>
-          )}
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-gray-500">Attuale:</span>
+            <span className="w-9 h-9 rounded-lg border border-gray-200 bg-[color:var(--navy-pale)] flex items-center justify-center text-[rgb(32,44,71)]"><CourseIcon icon={form.icon} className="w-5 h-5" /></span>
+            <label className="text-xs font-semibold text-[rgb(32,44,71)] border border-gray-200 rounded-lg px-3 py-1.5 cursor-pointer hover:bg-gray-50 inline-flex items-center gap-1.5">
+              <Icon name="upload" className="w-3.5 h-3.5" />Carica icona
+              <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleIconUpload(f); e.target.value = ''; }} />
+            </label>
+            {isImageIcon(form.icon) && (
+              <button type="button" onClick={() => setForm(f => ({ ...f, icon: 'pulse' }))} className="text-xs text-red-500 hover:underline">Rimuovi</button>
+            )}
+          </div>
+          {iconError
+            ? <p className="mt-1.5 text-[11px] text-red-500">{iconError}</p>
+            : <p className="mt-1.5 text-[11px] text-gray-400">Scegli dal catalogo o carica la tua (PNG, SVG, JPG, WebP · max 40&nbsp;KB · consigliato SVG quadrato).</p>}
         </div>
         <Input label="Sottotitolo" value={form.subtitle} onChange={e => setForm(f => ({ ...f, subtitle: e.target.value }))} placeholder="es. Aree principali del corso" />
 
@@ -1101,7 +1124,7 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
           {courses.map(c => (
             <button key={c.id} onClick={() => setSelectedCourse(c.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 font-medium text-sm transition-all ${selectedCourse === c.id ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:border-[rgb(32,44,71)] hover:text-[rgb(32,44,71)]'}`}>
-              <span>{c.icon}</span>
+              <CourseIcon icon={c.icon} className="w-4 h-4" />
               <span>{c.name}</span>
             </button>
           ))}

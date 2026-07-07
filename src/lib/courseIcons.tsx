@@ -29,8 +29,19 @@ export function isCourseIconKey(value?: string): value is IconName {
   return !!value && KEYS.has(value as IconName);
 }
 
-/** Mostra l'icona curata se `icon` è una chiave nota, altrimenti l'emoji legacy. */
+/** Icona personalizzata caricata dall'admin (data URI o URL immagine). */
+export function isImageIcon(value?: string): boolean {
+  return !!value && (value.startsWith('data:image/') || value.startsWith('http://') || value.startsWith('https://'));
+}
+
+/**
+ * Mostra:
+ *  - un'immagine caricata (data URI/URL), oppure
+ *  - l'icona curata se `icon` è una chiave nota, oppure
+ *  - l'emoji legacy salvata nel DB.
+ */
 export function CourseIcon({ icon, className = 'w-6 h-6' }: { icon?: string; className?: string }) {
+  if (isImageIcon(icon)) return <img src={icon} alt="" className={`${className} object-contain`} />;
   if (isCourseIconKey(icon)) return <Icon name={icon} className={className} />;
   return <span className="text-[22px] leading-none">{icon || '📘'}</span>;
 }
