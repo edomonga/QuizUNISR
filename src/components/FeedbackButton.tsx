@@ -1,0 +1,127 @@
+'use client';
+
+import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Modal } from '@/components/ui';
+import { submitFeedback, type FeedbackCategory } from '@/lib/db';
+
+const CATEGORIES: { value: FeedbackCategory; label: string; icon: string }[] = [
+  { value: 'suggerimento', label: 'Suggerimento', icon: '💡' },
+  { value: 'bug',          label: 'Problema',     icon: '🐞' },
+  { value: 'contenuti',    label: 'Contenuti',    icon: '📚' },
+  { value: 'altro',        label: 'Altro',        icon: '💬' },
+];
+
+export function FeedbackButton() {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [category, setCategory] = useState<FeedbackCategory>('suggerimento');
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!user) return null;
+
+  const reset = () => {
+    setOpen(false);
+    setCategory('suggerimento');
+    setMessage('');
+    setSending(false);
+    setSent(false);
+    setError(null);
+  };
+
+  const handleSend = async () => {
+    if (!message.trim() || sending) return;
+    setSending(true);
+    setError(null);
+    const { error } = await submitFeedback({
+      user_id: user.id,
+      user_name: user.display_name,
+      category,
+      message: message.trim(),
+    });
+    setSending(false);
+    if (error) setError("Impossibile inviare il feedback. Riprova tra poco.");
+    else setSent(true);
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="group flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-200 bg-white/60 px-4 py-3 text-sm font-medium text-gray-500 transition-all hover:border-[rgb(32,44,71)] hover:text-[rgb(32,44,71)] hover:shadow-sm"
+      >
+        <span className="text-base transition-transform group-hover:scale-110">💡</span>
+        Hai un'idea per migliorare UniQuiz? Inviaci un feedback
+      </button>
+
+      {open && (
+        <Modal title="Invia un feedback" onClose={reset}>
+          {sent ? (
+            <div className="py-6 text-center">
+              <div className="mb-2 text-4xl">🙌</div>
+              <p className="font-semibold text-emerald-700">Grazie per il tuo feedback!</p>
+              <p className="mt-1 text-sm text-gray-500">Lo useremo per migliorare l'app.</p>
+              <button onClick={reset} className="btn-primary mt-5 w-full">Chiudi</button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Raccontaci cosa possiamo migliorare: un suggerimento, un problema riscontrato o
+                un'idea per nuovi contenuti.
+              </p>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Categoria</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {CATEGORIES.map(c => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      onClick={() => setCategory(c.value)}
+                      className={`flex items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-medium transition-all ${
+                        category === c.value
+                          ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <span>{c.icon}</span>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Il tuo messaggio</label>
+                <textarea
+                  className="w-full resize-none rounded-xl border border-gray-300 p-3 text-base focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"
+                  rows={4}
+                  value={message}
+                  onChange={e => setMessage(e.target.value)}
+                  maxLength={1000}
+                  placeholder="Es: mi piacerebbe poter ripassare solo gli errori di un singolo argomento…"
+                />
+                <div className="mt-1 text-right text-xs text-gray-400">{message.length}/1000</div>
+              </div>
+
+              {error && (
+                <p className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-sm font-medium text-red-700">{error}</p>
+              )}
+
+              <button
+                onClick={handleSend}
+                disabled={!message.trim() || sending}
+                className="btn-primary w-full"
+              >
+                {sending ? 'Invio…' : 'Invia feedback'}
+              </button>
+            </div>
+          )}
+        </Modal>
+      )}
+    </>
+  );
+}
