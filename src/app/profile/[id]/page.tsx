@@ -65,13 +65,13 @@ export default function ProfilePage() {
         </div>
 
         {/* Overview */}
-        <Card className="bg-[rgb(32,44,71)] text-white">
-          <p className="text-blue-200 text-xs uppercase tracking-wide font-medium mb-3">Riepilogo</p>
+        <Card className="nav-grad text-white border-transparent">
+          <p className="text-[#8FE3DE] text-xs uppercase tracking-wide font-semibold mb-3">Riepilogo</p>
           <div className="grid grid-cols-3 gap-3">
             {[[totalQ, 'Domande'], [`${acc}%`, 'Accuratezza'], [exams.length, 'Esami']].map(([v, l]) => (
               <div key={l as string} className="bg-white/10 rounded-xl p-3 text-center">
-                <div className="text-xl font-bold">{v}</div>
-                <div className="text-xs text-blue-200 mt-0.5">{l}</div>
+                <div className="text-xl font-bold text-white tabular-nums">{v}</div>
+                <div className="text-xs text-blue-100/80 mt-0.5">{l}</div>
               </div>
             ))}
           </div>
