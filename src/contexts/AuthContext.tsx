@@ -21,7 +21,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.user) {
       const profile = await getProfile(session.user.id);
-      setUser(profile);
+      // Difesa contro il bypass via URL: se la sessione esiste ma il profilo
+      // non è attivo (o manca), chiudi la sessione e non considerarlo loggato.
+      if (!profile || !profile.is_active) {
+        await supabase.auth.signOut();
+        setUser(null);
+      } else {
+        setUser(profile);
+      }
     } else {
       setUser(null);
     }

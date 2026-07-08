@@ -33,8 +33,16 @@ export async function signIn(email: string, password: string): Promise<{ user: A
   if (error) return { user: null, error: 'Email o password non corretti.' };
 
   const profile = await getProfile(data.user.id);
-  if (!profile) return { user: null, error: 'Profilo non trovato. Contatta un amministratore.' };
-  if (!profile.is_active) return { user: null, error: 'Account non ancora attivato. Controlla la tua email oppure contatta un amministratore.' };
+  // Se il profilo manca o non è attivo, chiudi SUBITO la sessione: altrimenti
+  // resterebbe un JWT valido con cui accedere ai dati/navigare via URL.
+  if (!profile) {
+    await supabase.auth.signOut();
+    return { user: null, error: 'Profilo non trovato. Contatta un amministratore.' };
+  }
+  if (!profile.is_active) {
+    await supabase.auth.signOut();
+    return { user: null, error: 'Account non ancora attivato. Controlla la tua email oppure contatta un amministratore.' };
+  }
 
   return { user: profile, error: null };
 }
