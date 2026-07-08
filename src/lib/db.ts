@@ -318,10 +318,39 @@ export async function getReports(status?: string): Promise<QuestionReport[]> {
 export async function updateReportStatus(id: string, status: 'pending' | 'resolved'): Promise<{ error: string | null }> {
   const { error } = await supabase.from('question_reports').update({
     status,
-    // risolta → parte il timer dei 3 giorni; riaperta → timer azzerato
+    // risolta → registra il momento (usato per l'auto-pulizia); riaperta → azzera
     resolved_at: status === 'resolved' ? new Date().toISOString() : null,
   }).eq('id', id);
   return { error: error?.message ?? null };
+}
+
+/** Elimina definitivamente una segnalazione. */
+export async function deleteReport(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('question_reports').delete().eq('id', id);
+  return { error: error?.message ?? null };
+}
+
+/** Elimina tutte le segnalazioni risolte (svuota la sezione «Risolte»). */
+export async function deleteResolvedReports(): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('question_reports').delete().eq('status', 'resolved');
+  return { error: error?.message ?? null };
+}
+
+/**
+ * Auto-pulizia: elimina le segnalazioni risolte da più di `hours` ore.
+ * Viene richiamata all'apertura della sezione segnalazioni, così la lista
+ * delle risolte non cresce all'infinito. Ritorna quante ne ha eliminate.
+ */
+export async function purgeOldResolvedReports(hours = 24): Promise<number> {
+  const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('question_reports')
+    .delete()
+    .eq('status', 'resolved')
+    .lt('resolved_at', cutoff)
+    .select('id');
+  if (error) { console.error('purgeOldResolvedReports:', error.message); return 0; }
+  return data?.length ?? 0;
 }
 
 // ─── Account summary (riepilogo globale su tutte le materie) ──────────────────
