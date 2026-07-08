@@ -5,11 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Icon } from '@/components/Icon';
 
 // ─── Link PayPal ──────────────────────────────────────────────────────────────
-// Imposta il tuo link in Vercel come variabile d'ambiente NEXT_PUBLIC_PAYPAL_URL
-// (es. https://paypal.me/tuonome/1 per pre-compilare 1€). Se non impostata,
-// usa il placeholder qui sotto: sostituiscilo con il tuo.
+// Sovrascrivibile in Vercel con la variabile d'ambiente NEXT_PUBLIC_PAYPAL_URL.
+// Il suffisso /1EUR pre-compila un importo di 1€.
 const PAYPAL_URL =
-  process.env.NEXT_PUBLIC_PAYPAL_URL || 'https://www.paypal.com/paypalme/PLACEHOLDER/1';
+  process.env.NEXT_PUBLIC_PAYPAL_URL || 'https://paypal.me/EMongardini/1EUR';
 
 const SEEN_KEY = 'uniquiz_support_seen_v1';
 
