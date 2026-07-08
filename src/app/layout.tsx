@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { SupportWidget } from '@/components/SupportWidget';
 
 export const metadata: Metadata = {
   title: 'UniQuiz',
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-[rgb(240,242,247)]">
         <AuthProvider>
           {children}
+          <SupportWidget />
         </AuthProvider>
       </body>
     </html>
