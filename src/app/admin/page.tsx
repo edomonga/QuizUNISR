@@ -1778,10 +1778,19 @@ const statusLabel: Record<string, string> = {
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle[r.status]}`}>
                   {statusLabel[r.status]}
                 </span>
+                {r.course_name && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-[color:var(--sig-soft)] text-[color:var(--sig)]">
+                    <Icon name="book" className="w-3 h-3" />{r.course_name}
+                  </span>
+                )}
                 <span className="text-xs text-gray-400">
                   {new Date(r.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
+              <p className="text-xs text-gray-500 mb-2 inline-flex items-center gap-1.5">
+                <Icon name="user" className="w-3.5 h-3.5 text-gray-400" />
+                Segnalata da <span className="font-semibold text-[rgb(32,44,71)]">{r.user_name || 'Utente sconosciuto'}</span>
+              </p>
               <p className="text-sm font-semibold text-[rgb(32,44,71)] leading-snug mb-3">{r.question_text}</p>
               <div className="bg-[rgb(240,242,247)] rounded-xl p-3 text-xs space-y-1.5">
                 <div className="flex items-start gap-2">

@@ -291,6 +291,9 @@ export interface QuestionReport {
   note: string;
   status: 'pending' | 'resolved';
   created_at: string;
+  // Arricchiti in lettura (non colonne del DB):
+  user_name?: string | null;    // nome di chi ha segnalato
+  course_name?: string | null;  // materia da cui proviene la domanda
 }
 
 export async function submitReport(report: {
@@ -312,7 +315,30 @@ export async function getReports(status?: string): Promise<QuestionReport[]> {
     .order('created_at', { ascending: false });
   if (status) q = q.eq('status', status);
   const { data } = await q;
-  return (data ?? []) as QuestionReport[];
+  const reports = (data ?? []) as QuestionReport[];
+  if (reports.length === 0) return reports;
+
+  // Arricchimento in lettura: nome di chi ha segnalato + materia della domanda.
+  // Nessuna colonna aggiuntiva sul DB → funziona anche sulle segnalazioni vecchie.
+  const userIds = Array.from(new Set(reports.map(r => r.user_id).filter(Boolean)));
+  const questionIds = Array.from(new Set(reports.map(r => r.question_id).filter(Boolean)));
+
+  const [{ data: profs }, { data: qs }, courses] = await Promise.all([
+    userIds.length ? supabase.from('profiles').select('id, display_name').in('id', userIds) : Promise.resolve({ data: [] as any[] }),
+    questionIds.length ? supabase.from('questions').select('id, course_id').in('id', questionIds) : Promise.resolve({ data: [] as any[] }),
+    getCachedCourses(),
+  ]);
+
+  const nameById = new Map((profs ?? []).map((p: any) => [p.id, p.display_name]));
+  const courseIdByQ = new Map((qs ?? []).map((x: any) => [x.id, x.course_id]));
+  const courseNameById = new Map(courses.map(c => [c.id, c.name]));
+
+  for (const r of reports) {
+    r.user_name = nameById.get(r.user_id) ?? null;
+    const cid = courseIdByQ.get(r.question_id);
+    r.course_name = cid ? (courseNameById.get(cid) ?? null) : null;
+  }
+  return reports;
 }
 
 export async function updateReportStatus(id: string, status: 'pending' | 'resolved'): Promise<{ error: string | null }> {
