@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from '@/lib/authHelpers';
@@ -12,7 +12,15 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { user, loading: authLoading, refresh } = useAuth();
+
+  // Rete di sicurezza: se risulti già autenticato (anche dopo un rimbalzo dovuto
+  // a un intoppo momentaneo), entra automaticamente invece di restare qui.
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace(user.must_change_password ? '/change-password' : '/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +28,7 @@ export default function LoginPage() {
     const { user, error: err } = await signIn(email, password);
     if (err) { setError(err); setLoading(false); return; }
     await refresh();
-    router.push(user?.must_change_password ? '/change-password' : '/dashboard');
+    router.replace(user?.must_change_password ? '/change-password' : '/dashboard');
   };
 
   return (

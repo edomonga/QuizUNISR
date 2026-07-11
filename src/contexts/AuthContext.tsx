@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getProfile } from '@/lib/authHelpers';
 import type { AuthUser } from '@/types';
@@ -16,23 +16,34 @@ const AuthContext = createContext<AuthContextValue>({ user: null, loading: true,
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const inFlight = useRef(false);
 
   const loadUser = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user) {
+    // Evita run concorrenti (login scatena sia SIGNED_IN sia un refresh esplicito):
+    // due loadUser in parallelo potevano pestarsi i piedi e causare login "a vuoto".
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setUser(null);
+        return;
+      }
       const profile = await getProfile(session.user.id);
-      // Difesa contro il bypass via URL: se la sessione esiste ma il profilo
-      // non è attivo (o manca), chiudi la sessione e non considerarlo loggato.
-      if (!profile || !profile.is_active) {
+      if (profile && !profile.is_active) {
+        // Profilo caricato ed effettivamente NON attivo → sicurezza: esci.
         await supabase.auth.signOut();
         setUser(null);
-      } else {
+      } else if (profile) {
         setUser(profile);
       }
-    } else {
-      setUser(null);
+      // Se `profile` è null (errore transitorio di rete / race): NON fare signOut.
+      // La sessione resta valida e il profilo verrà riletto al prossimo giro o al
+      // reload — così un semplice intoppo di rete non ti butta fuori durante il login.
+    } finally {
+      inFlight.current = false;
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
