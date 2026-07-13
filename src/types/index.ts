@@ -7,6 +7,7 @@ export interface Profile {
   is_admin: boolean;
   is_active: boolean;
   must_change_password?: boolean;
+  year?: number | null;
   created_at: string;
 }
 
@@ -136,4 +137,5 @@ export interface AuthUser {
   is_admin: boolean;
   is_active: boolean;
   must_change_password?: boolean;
+  year?: number | null;
 }

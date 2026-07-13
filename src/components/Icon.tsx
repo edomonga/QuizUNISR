@@ -16,7 +16,7 @@ export type IconName =
   | 'sparkles' | 'alert' | 'trophy' | 'shuffle' | 'dice' | 'file'
   | 'layers' | 'eye' | 'folder' | 'list' | 'inbox' | 'grid'
   | 'heart' | 'brain' | 'bone' | 'pill' | 'lungs' | 'tooth' | 'syringe'
-  | 'trash' | 'plus' | 'upload' | 'download' | 'search' | 'key';
+  | 'trash' | 'plus' | 'upload' | 'download' | 'search' | 'key' | 'bookmark';
 
 const paths: Record<IconName, JSX.Element> = {
   pulse: <path d="M2 12h4l2.5-6L12 18l2.5-8L18 12h4" />,
@@ -75,6 +75,7 @@ const paths: Record<IconName, JSX.Element> = {
   download: <><path d="M12 4v11" /><path d="M8 11l4 4 4-4" /><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></>,
   search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></>,
   key: <><circle cx="8" cy="8" r="4" /><path d="M11 11l8 8" /><path d="M16 16l2-2" /></>,
+  bookmark: <path d="M6 4.5h12v15l-6-4-6 4z" />,
 };
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {

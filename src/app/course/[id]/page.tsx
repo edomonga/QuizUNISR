@@ -37,6 +37,8 @@ export default function CoursePage() {
       setStats(s);
       setExams(e.filter(r => r.course_id === courseId));
       setFetching(false);
+      // Ricorda l'ultima materia aperta per il "riprendi da dove eri" in dashboard.
+      if (c) { try { localStorage.setItem('uniquiz_last_course', JSON.stringify({ id: c.id, name: c.name })); } catch { /* ignore */ } }
     });
   }, [user, courseId]);
 
