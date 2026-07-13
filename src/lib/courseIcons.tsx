@@ -34,6 +34,16 @@ export function isImageIcon(value?: string): boolean {
   return !!value && (value.startsWith('data:image/') || value.startsWith('http://') || value.startsWith('https://'));
 }
 
+// Le icone del catalogo (SVG) sono disegnate a tratto sottile e il loro glifo
+// occupa solo ~75-80% della viewBox, lasciando dell'aria attorno. Le immagini
+// caricate dall'admin invece riempiono quasi tutto il riquadro: con
+// `maskSize: contain` finirebbero per apparire più grandi e «pesanti» delle
+// icone di default. Applichiamo quindi un piccolo margine ottico in fase di
+// resa, così ogni icona caricata rientra nello stesso ingombro visivo del
+// catalogo — senza dover ricaricare nulla. Valore regolabile qui in un punto
+// solo (0.82 = il glifo occupa l'82% del riquadro, centrato).
+const IMAGE_ICON_SCALE = 0.82;
+
 /**
  * Mostra:
  *  - un'immagine caricata (data URI/URL), oppure
@@ -43,8 +53,11 @@ export function isImageIcon(value?: string): boolean {
 export function CourseIcon({ icon, className = 'w-6 h-6' }: { icon?: string; className?: string }) {
   // Immagine caricata → resa come maschera con `currentColor`, così eredita il
   // colore dal contesto esattamente come le icone del catalogo (teal sul banner
-  // scuro, navy sulle tile, grigio per «in arrivo»).
+  // scuro, navy sulle tile, grigio per «in arrivo»). Il margine ottico è
+  // applicato via `maskSize` percentuale + centratura, così l'immagine è
+  // rimpicciolita in modo uniforme mantenendo l'aspect-ratio.
   if (isImageIcon(icon)) {
+    const pct = `${Math.round(IMAGE_ICON_SCALE * 100)}%`;
     return (
       <span
         role="img"
@@ -58,8 +71,10 @@ export function CourseIcon({ icon, className = 'w-6 h-6' }: { icon?: string; cla
           maskRepeat: 'no-repeat',
           WebkitMaskPosition: 'center',
           maskPosition: 'center',
-          WebkitMaskSize: 'contain',
-          maskSize: 'contain',
+          // `contain` entro un riquadro ridotto all'82%: il glifo mantiene le
+          // proporzioni ma lascia dell'aria come le icone del catalogo.
+          WebkitMaskSize: `${pct} ${pct}`,
+          maskSize: `${pct} ${pct}`,
         }}
       />
     );
