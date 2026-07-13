@@ -7,14 +7,20 @@ import { getCourses } from '@/lib/db';
 import { PageShell, Card, Spinner } from '@/components/ui';
 import { FeedbackButton } from '@/components/FeedbackButton';
 import { Icon } from '@/components/Icon';
+import { YearPicker } from '@/components/YearPicker';
 import { CourseIcon } from '@/lib/courseIcons';
 import type { Course } from '@/types';
 
+const LAST_COURSE_KEY = 'uniquiz_last_course';
+
 export default function DashboardPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [pickYear, setPickYear] = useState(false);
+  const [openYears, setOpenYears] = useState<Set<string>>(new Set());
+  const [lastCourseId, setLastCourseId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -22,6 +28,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     getCourses().then(data => { setCourses(data); setFetching(false); });
+    try {
+      const raw = localStorage.getItem(LAST_COURSE_KEY);
+      if (raw) setLastCourseId(JSON.parse(raw).id ?? null);
+    } catch { /* ignore */ }
   }, []);
 
   if (loading || fetching) return (
@@ -32,86 +42,151 @@ export default function DashboardPage() {
   // ── Raggruppa per anno ──────────────────────────────────────────────────────
   const grouped: Record<number, Course[]> = {};
   const unassigned: Course[] = [];
-
   courses.forEach(course => {
     if (course.year != null) {
-      if (!grouped[course.year]) grouped[course.year] = [];
-      grouped[course.year].push(course);
+      (grouped[course.year] ??= []).push(course);
     } else {
       unassigned.push(course);
     }
   });
-
-  const sortedYears = Object.keys(grouped)
-    .map(Number)
-    .sort((a, b) => a - b);
-
+  const sortedYears = Object.keys(grouped).map(Number).sort((a, b) => a - b);
   const hasAnyCourse = courses.length > 0;
+
+  const myYear = user.year ?? null;
+  const myYearCourses = myYear != null ? (grouped[myYear] ?? []) : [];
+  const otherYears = sortedYears.filter(y => y !== myYear);
+
+  const resumeCourse = lastCourseId
+    ? courses.find(c => c.id === lastCourseId && c.is_available) ?? null
+    : null;
+
+  const toggleYear = (key: string) =>
+    setOpenYears(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   return (
     <PageShell>
       <div className="max-w-3xl mx-auto px-4">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
+        {/* Header */}
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0">
             <h2 className="text-2xl font-bold text-[rgb(32,44,71)]">Ciao, {user.display_name}! 👋</h2>
-            <p className="text-gray-400 mt-0.5 text-sm">Scegli la materia su cui vuoi esercitarti</p>
+            <p className="text-gray-400 mt-0.5 text-sm">
+              {myYear != null ? 'Ecco su cosa concentrarti adesso' : 'Scegli la materia su cui vuoi esercitarti'}
+            </p>
+            {hasAnyCourse && (
+              <button onClick={() => setPickYear(true)}
+                className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-[color:var(--sig-soft)] text-[color:var(--sig)] hover:brightness-95 transition">
+                <Icon name="user" className="w-3.5 h-3.5" />
+                {myYear != null ? `${myYear}º Anno · modifica` : 'Imposta il tuo anno'}
+              </button>
+            )}
           </div>
           {user.is_admin && (
             <Link href="/admin"
-              className="flex items-center gap-2 text-sm font-medium text-[rgb(32,44,71)] bg-white border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors shadow-sm">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Pannello Admin
+              className="flex-shrink-0 flex items-center gap-2 text-sm font-medium text-[rgb(32,44,71)] bg-white border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors shadow-sm">
+              <Icon name="sliders" className="w-4 h-4" />
+              <span className="hidden sm:inline">Pannello Admin</span>
             </Link>
           )}
         </div>
+
+        {/* Riprendi da dove eri */}
+        {resumeCourse && (
+          <Link href={`/course/${resumeCourse.id}`}
+            className="group mb-6 flex items-center gap-3 rounded-2xl p-4 bg-[color:var(--sig-soft)] border border-[color:var(--sig)]/25 hover:shadow-sm transition">
+            <span className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-[color:var(--sig)] flex-shrink-0">
+              <Icon name="refresh" className="w-5 h-5" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--sig)]">Riprendi da dove eri</div>
+              <div className="font-bold text-[rgb(32,44,71)] truncate">{resumeCourse.name}</div>
+            </div>
+            <Icon name="chevron-right" className="w-5 h-5 ml-auto flex-shrink-0 text-[color:var(--sig)]" />
+          </Link>
+        )}
 
         {!hasAnyCourse ? (
           <Card className="text-center py-12 text-gray-400">
             <Icon name="book" className="w-9 h-9 mx-auto mb-3 text-gray-300" />
             <p className="font-medium">Nessuna materia disponibile al momento.</p>
-            {user.is_admin && (
-              <Link href="/admin/courses" className="btn-primary inline-block mt-4 text-sm">
-                Aggiungi una materia →
-              </Link>
-            )}
           </Card>
-        ) : (
+        ) : myYear != null ? (
+          /* ── Vista personalizzata: il mio anno in evidenza ── */
           <div className="space-y-8">
-            {/* Sezioni per anno */}
+            <section>
+              <div className="flex items-center gap-2.5 mb-4">
+                <span className="w-6 h-6 rounded-lg bg-[color:var(--sig)] text-white flex items-center justify-center flex-shrink-0">
+                  <Icon name="bookmark" className="w-3.5 h-3.5" />
+                </span>
+                <h3 className="text-sm font-extrabold text-[rgb(32,44,71)]">I tuoi esami · {myYear}º Anno</h3>
+              </div>
+              {myYearCourses.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {myYearCourses.map(c => <CourseCard key={c.id} course={c} />)}
+                </div>
+              ) : (
+                <Card className="text-center py-8 text-gray-400 text-sm">
+                  Nessuna materia per il {myYear}º anno al momento. Le trovi tutte qui sotto.
+                </Card>
+              )}
+            </section>
+
+            {(otherYears.length > 0 || unassigned.length > 0) && (
+              <section>
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400 mb-3 px-1">Altri anni</p>
+                <div className="space-y-2.5">
+                  {otherYears.map(year => (
+                    <YearAccordion key={year} yearKey={String(year)} badge={String(year)} title={`${year}º Anno`}
+                      courses={grouped[year]} open={openYears.has(String(year))} onToggle={toggleYear} />
+                  ))}
+                  {unassigned.length > 0 && (
+                    <YearAccordion yearKey="altro" badge="•" title="Altro"
+                      courses={unassigned} open={openYears.has('altro')} onToggle={toggleYear} />
+                  )}
+                </div>
+              </section>
+            )}
+          </div>
+        ) : (
+          /* ── Fallback: anno non impostato → invito + vista classica per anno ── */
+          <div className="space-y-8">
+            <button onClick={() => setPickYear(true)}
+              className="w-full flex items-center gap-3 rounded-2xl p-4 bg-[rgb(32,44,71)] text-white text-left hover:bg-[rgb(46,61,96)] transition">
+              <span className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-[#8FE3DE] flex-shrink-0">
+                <Icon name="user" className="w-5 h-5" />
+              </span>
+              <div className="min-w-0">
+                <div className="font-bold">Imposta il tuo anno di corso</div>
+                <div className="text-xs text-blue-100/80">Vedrai in cima le materie del tuo anno.</div>
+              </div>
+              <Icon name="chevron-right" className="w-5 h-5 ml-auto flex-shrink-0 text-[#8FE3DE]" />
+            </button>
+
             {sortedYears.map(year => (
               <section key={year}>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[rgb(32,44,71)] text-white text-sm font-bold flex-shrink-0">
-                    {year}
-                  </div>
-                  <h3 className="text-base font-semibold text-[rgb(32,44,71)]">{year}° Anno</h3>
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[rgb(32,44,71)] text-white text-sm font-bold flex-shrink-0">{year}</div>
+                  <h3 className="text-base font-semibold text-[rgb(32,44,71)]">{year}º Anno</h3>
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {grouped[year].map(course => (
-                    <CourseCard key={course.id} course={course} />
-                  ))}
+                  {grouped[year].map(c => <CourseCard key={c.id} course={c} />)}
                 </div>
               </section>
             ))}
-
-            {/* Sezione «Altro» per materie senza anno */}
             {unassigned.length > 0 && (
               <section>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-300 text-gray-600 text-sm font-bold flex-shrink-0">
-                    •
-                  </div>
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-300 text-gray-600 text-sm font-bold flex-shrink-0">•</div>
                   <h3 className="text-base font-semibold text-gray-500">Altro</h3>
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {unassigned.map(course => (
-                    <CourseCard key={course.id} course={course} />
-                  ))}
+                  {unassigned.map(c => <CourseCard key={c.id} course={c} />)}
                 </div>
               </section>
             )}
@@ -123,7 +198,32 @@ export default function DashboardPage() {
           <FeedbackButton />
         </div>
       </div>
+
+      {pickYear && (
+        <YearPicker current={myYear} userId={user.id} onClose={() => setPickYear(false)} onSaved={refresh} />
+      )}
     </PageShell>
+  );
+}
+
+function YearAccordion({ yearKey, badge, title, courses, open, onToggle }: {
+  yearKey: string; badge: string; title: string; courses: Course[]; open: boolean; onToggle: (k: string) => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden shadow-sm">
+      <button onClick={() => onToggle(yearKey)}
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors text-left">
+        <span className="w-7 h-7 rounded-lg bg-[rgb(240,242,247)] text-gray-500 font-bold text-xs flex items-center justify-center flex-shrink-0">{badge}</span>
+        <span className="font-semibold text-sm text-[rgb(32,44,71)]">{title}</span>
+        <span className="text-xs text-gray-400">· {courses.length} {courses.length === 1 ? 'materia' : 'materie'}</span>
+        <Icon name="chevron-right" className={`w-4 h-4 ml-auto flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-3 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {courses.map(c => <CourseCard key={c.id} course={c} />)}
+        </div>
+      )}
+    </div>
   );
 }
 

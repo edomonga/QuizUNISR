@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { getAccountSummary, updateProfile, type AccountSummary } from '@/lib/db';
 import { PageShell, Card, Spinner, Modal } from '@/components/ui';
 import { Icon, type IconName } from '@/components/Icon';
+import { YearPicker } from '@/components/YearPicker';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -22,6 +23,7 @@ export default function AccountPage() {
   const [fetching, setFetching] = useState(true);
   const [editName, setEditName] = useState(false);
   const [changePw, setChangePw] = useState(false);
+  const [pickYear, setPickYear] = useState(false);
 
   useEffect(() => { if (!loading && !user) router.push('/login'); }, [user, loading, router]);
 
@@ -98,6 +100,11 @@ export default function AccountPage() {
             <span className="flex-1 min-w-0"><span className="block text-xs text-gray-400">Email</span><span className="block text-sm font-semibold text-[rgb(32,44,71)] truncate">{user.email}</span></span>
             <span className="text-[10.5px] font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded-md flex-shrink-0">Non modificabile</span>
           </div>
+          <button onClick={() => setPickYear(true)} className="w-full flex items-center gap-3 px-4 py-3.5 border-t border-gray-100 hover:bg-gray-50 transition-colors text-left">
+            <span className="w-9 h-9 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center flex-shrink-0"><Icon name="clock" className="w-[18px] h-[18px]" /></span>
+            <span className="flex-1 min-w-0"><span className="block text-xs text-gray-400">Anno di corso</span><span className="block text-sm font-semibold text-[rgb(32,44,71)]">{user.year != null ? `${user.year}º Anno` : 'Non impostato'}</span></span>
+            <Icon name="chevron-right" className="w-4 h-4 text-gray-300 flex-shrink-0" />
+          </button>
           <button onClick={() => setChangePw(true)} className="w-full flex items-center gap-3 px-4 py-3.5 border-t border-gray-100 hover:bg-gray-50 transition-colors text-left">
             <span className="w-9 h-9 rounded-xl bg-gray-100 text-gray-500 flex items-center justify-center flex-shrink-0"><Icon name="lock" className="w-[18px] h-[18px]" /></span>
             <span className="flex-1 min-w-0"><span className="block text-xs text-gray-400">Sicurezza</span><span className="block text-sm font-semibold text-[rgb(32,44,71)]">Cambia password</span></span>
@@ -135,6 +142,7 @@ export default function AccountPage() {
 
       {editName && <EditNameModal current={user.display_name} userId={user.id} onClose={() => setEditName(false)} onSaved={refresh} />}
       {changePw && <ChangePasswordModal onClose={() => setChangePw(false)} />}
+      {pickYear && <YearPicker current={user.year ?? null} userId={user.id} onClose={() => setPickYear(false)} onSaved={refresh} />}
     </PageShell>
   );
 }
