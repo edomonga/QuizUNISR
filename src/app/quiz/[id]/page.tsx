@@ -105,7 +105,12 @@ export default function QuizPage() {
   const pool = allQs.filter(q =>
     selAreas.includes(q.macro_area_id) && (selTopics.length === 0 || selTopics.includes(q.topic_id))
   );
- const maxQ = mode === 'wrong' ? Math.min(wrongCount, 50) : Math.min(pool.length, 50);
+  // Massimo = numero di domande effettivamente disponibili nella selezione
+  // (per modalità), senza tetto fisso: così si possono ripassare tutte.
+  const maxQ =
+    mode === 'wrong' ? wrongCount :
+    mode === 'unseen' ? (unseenCount?.unseen ?? pool.length) :
+    pool.length;
 
   const startQuiz = async () => {
     if (!user) return;
@@ -260,11 +265,11 @@ export default function QuizPage() {
       {isWrongMode ? '2' : availTopics.length > 0 ? '4' : '3'} · Numero di domande:
       <span className={`ml-1 ${isWrongMode ? 'text-red-500' : 'text-[rgb(99,130,201)]'}`}>{Math.min(count, maxQ || 5)}</span>
     </h3>
-    <input type="range" min={5} max={maxQ || 5} value={Math.min(count, maxQ || 5)}
+    <input type="range" min={Math.min(5, maxQ || 5)} max={maxQ || 5} value={Math.min(count, maxQ || 5)}
       onChange={e => setCount(+e.target.value)}
       className={`w-full ${isWrongMode ? 'accent-red-500' : 'accent-[rgb(32,44,71)]'}`} />
     <div className="flex justify-between text-xs text-gray-400 mt-1">
-      <span>5</span>
+      <span>{Math.min(5, maxQ || 5)}</span>
       <span>Disponibili: {isWrongMode ? wrongCount : mode === 'unseen' ? (unseenCount?.unseen ?? pool.length) : pool.length}</span>
       <span>{maxQ || 5}</span>
     </div>
