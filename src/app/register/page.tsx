@@ -7,6 +7,7 @@ import { Icon } from '@/components/Icon';
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [year, setYear] = useState<number | null>(null);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -31,7 +32,7 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-    const { error: err } = await signUp(email, password, displayName);
+    const { error: err } = await signUp(email, password, displayName, year);
     setLoading(false);
 
     if (err) { setError(err); return; }
@@ -108,6 +109,18 @@ export default function RegisterPage() {
               {email && isAllowedEmail(email) && (
                 <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Icon name="check" className="w-3 h-3" />Indirizzo valido</p>
               )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Anno di corso <span className="text-gray-400 font-normal">(facoltativo)</span></label>
+              <div className="grid grid-cols-6 gap-1.5">
+                {[1, 2, 3, 4, 5, 6].map(y => (
+                  <button key={y} type="button" onClick={() => setYear(year === y ? null : y)}
+                    className={`py-2 rounded-lg border-2 text-sm font-bold transition-all ${year === y ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
+                    {y}º
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">Personalizza la dashboard mettendo in cima le tue materie. Modificabile in seguito.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>

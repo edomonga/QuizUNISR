@@ -109,6 +109,21 @@ export async function deleteQuestion(id: string): Promise<{ error: string | null
   return { error: error?.message ?? null };
 }
 
+/** Azioni multiple sulle domande (selezione dell'admin). */
+export async function setQuestionsActive(ids: string[], isActive: boolean, courseId?: string): Promise<{ error: string | null }> {
+  if (ids.length === 0) return { error: null };
+  const { error } = await supabase.from('questions').update({ is_active: isActive, updated_at: new Date().toISOString() }).in('id', ids);
+  if (!error) invalidateQuestionsCache(courseId);
+  return { error: error?.message ?? null };
+}
+
+export async function deleteQuestions(ids: string[], courseId?: string): Promise<{ error: string | null }> {
+  if (ids.length === 0) return { error: null };
+  const { error } = await supabase.from('questions').delete().in('id', ids);
+  if (!error) invalidateQuestionsCache(courseId);
+  return { error: error?.message ?? null };
+}
+
 export async function bulkInsertQuestions(questions: Array<Omit<Question, 'id' | 'created_at' | 'updated_at'>>): Promise<{ count: number; error: string | null }> {
   const { data, error } = await supabase.from('questions').insert(questions).select('id');
   if (error) return { count: 0, error: error.message };

@@ -8,7 +8,7 @@ export function isAllowedEmail(email: string): boolean {
 }
 
 /** Sign up – only @studenti.unisr.it addresses are accepted */
-export async function signUp(email: string, password: string, displayName: string): Promise<{ error: string | null }> {
+export async function signUp(email: string, password: string, displayName: string, year?: number | null): Promise<{ error: string | null }> {
   if (!isAllowedEmail(email)) {
     return { error: `Registrazione riservata agli indirizzi ${ALLOWED_DOMAIN}` };
   }
@@ -18,7 +18,8 @@ export async function signUp(email: string, password: string, displayName: strin
     password,
     options: {
       emailRedirectTo: `${window.location.origin}/auth/callback`,
-      data: { display_name: displayName },
+      // `year` viene letto dal trigger handle_new_user per pre-impostare l'anno.
+      data: { display_name: displayName, year: year ?? null },
     },
   });
 

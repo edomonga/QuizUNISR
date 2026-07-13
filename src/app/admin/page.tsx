@@ -12,6 +12,7 @@ import {
   getMacroAreas, upsertMacroArea, deleteMacroArea,
   getTopics, upsertTopic, deleteTopic,
   getQuestions, upsertQuestion, deleteQuestion, bulkInsertQuestions,
+  setQuestionsActive, deleteQuestions,
   getReports, updateReportStatus, QuestionReport,
   deleteReport, deleteResolvedReports, purgeOldResolvedReports,
   getFeedback, updateFeedbackStatus, AppFeedback,
@@ -107,6 +108,15 @@ function UsersTab() {
     else { flash('ok', 'Aggiornato.'); load(); }
   };
 
+  const activateAll = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const results = await Promise.all(ids.map(id => updateProfile(id, { is_active: true })));
+    const failed = results.filter(r => r.error).length;
+    if (failed) flash('err', `${failed} attivazioni non riuscite.`);
+    else flash('ok', `${ids.length} ${ids.length === 1 ? 'utente attivato' : 'utenti attivati'}.`);
+    load();
+  };
+
   const handleDelete = async (id: string) => {
     try {
       const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession();
@@ -195,16 +205,25 @@ function UsersTab() {
 
       {pending.length > 0 && (
         <Card className="border-2 border-amber-200">
-          <h3 className="font-semibold text-amber-700 mb-3 text-sm">⏳ In attesa di attivazione ({pending.length})</h3>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="font-semibold text-amber-700 text-sm flex items-center gap-1.5"><Icon name="clock" className="w-4 h-4" />In attesa di attivazione ({pending.length})</h3>
+            <button onClick={() => activateAll(pending.map(p => p.id))}
+              className="text-xs bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors inline-flex items-center gap-1.5">
+              <Icon name="check" className="w-3.5 h-3.5" />Attiva tutti
+            </button>
+          </div>
           <div className="space-y-2">
             {pending.map(p => (
               <div key={p.id} className="flex items-center justify-between gap-3 p-3 bg-amber-50 rounded-xl">
-                <div>
-                  <div className="font-medium text-gray-800 text-sm">{p.display_name}</div>
-                  <div className="text-xs text-gray-500">{p.email}</div>
+                <div className="min-w-0">
+                  <div className="font-medium text-gray-800 text-sm flex items-center gap-2">
+                    {p.display_name}
+                    {p.year != null && <span className="text-[10px] font-bold bg-white text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full">{p.year}º</span>}
+                  </div>
+                  <div className="text-xs text-gray-500 truncate">{p.email}</div>
                 </div>
                 <button onClick={() => toggle(p.id, 'is_active', true)}
-                  className="text-xs bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors">
+                  className="flex-shrink-0 text-xs bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors">
                   Attiva
                 </button>
               </div>
@@ -225,8 +244,9 @@ function UsersTab() {
             <div key={p.id} className="p-3 bg-[rgb(240,242,247)] rounded-xl">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-[rgb(32,44,71)] text-sm">{p.display_name}</span>
+                    {p.year != null && <span className="text-[10px] font-bold bg-[color:var(--sig-soft)] text-[color:var(--sig)] px-1.5 py-0.5 rounded-full">{p.year}º Anno</span>}
                     {p.is_admin && <span className="text-xs bg-amber-100 text-amber-700 font-medium px-1.5 py-0.5 rounded-full">Admin</span>}
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5">{p.email}</div>
@@ -880,6 +900,10 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const [showDownload, setShowDownload] = useState(false);
   const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   useEffect(() => { getCourses().then(setCourses); }, []);
 
@@ -903,9 +927,36 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
   const filteredQs = questions.filter(q =>
     (!filterArea || q.macro_area_id === filterArea) &&
     (!filterTopic || q.topic_id === filterTopic) &&
+    (statusFilter === 'all' || (statusFilter === 'active' ? q.is_active : !q.is_active)) &&
     (!searchText || q.question_text.toLowerCase().includes(searchText.toLowerCase()))
   );
   const visibleTopics = allTopics.filter(t => !filterArea || t.macro_area_id === filterArea);
+
+  // Paginazione + reset quando cambiano filtri/materia.
+  const pageCount = Math.max(1, Math.ceil(filteredQs.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const pageQs = filteredQs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [filterArea, filterTopic, searchText, statusFilter, selectedCourse]);
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allPageSelected = pageQs.length > 0 && pageQs.every(q => selectedIds.has(q.id));
+  const toggleSelectPage = () =>
+    setSelectedIds(prev => { const n = new Set(prev); allPageSelected ? pageQs.forEach(q => n.delete(q.id)) : pageQs.forEach(q => n.add(q.id)); return n; });
+
+  const bulkSetActive = async (active: boolean) => {
+    const ids = Array.from(selectedIds);
+    const { error } = await setQuestionsActive(ids, active, selectedCourse);
+    if (error) flash('err', error);
+    else { flash('ok', `${ids.length} ${ids.length === 1 ? 'domanda' : 'domande'} ${active ? 'attivate' : 'disattivate'}.`); setSelectedIds(new Set()); reload(); }
+  };
+  const bulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (!confirm(`Eliminare definitivamente ${ids.length} domande selezionate?`)) return;
+    const { error } = await deleteQuestions(ids, selectedCourse);
+    if (error) flash('err', error);
+    else { flash('ok', `${ids.length} domande eliminate.`); setSelectedIds(new Set()); reload(); }
+  };
 
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx');
@@ -1217,6 +1268,31 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
       )}
 
       {selectedCourse && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {(['all', 'active', 'inactive'] as const).map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${statusFilter === s ? 'bg-[rgb(32,44,71)] text-white border-[rgb(32,44,71)]' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'}`}>
+              {s === 'all' ? 'Tutte' : s === 'active' ? 'Attive' : 'Disattivate'}
+            </button>
+          ))}
+          <label className="ml-auto inline-flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+            <input type="checkbox" checked={allPageSelected} onChange={toggleSelectPage} className="w-4 h-4 accent-[rgb(32,44,71)]" />
+            Seleziona pagina
+          </label>
+        </div>
+      )}
+
+      {selectedCourse && selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 flex-wrap p-2.5 bg-[rgb(32,44,71)] rounded-xl text-white text-sm sticky top-2 z-10 shadow-md">
+          <span className="font-semibold px-1">{selectedIds.size} selezionate</span>
+          <button onClick={() => bulkSetActive(true)} className="inline-flex items-center gap-1.5 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 rounded-lg"><Icon name="check" className="w-3.5 h-3.5" />Attiva</button>
+          <button onClick={() => bulkSetActive(false)} className="inline-flex items-center gap-1.5 text-xs font-semibold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg"><Icon name="eye" className="w-3.5 h-3.5" />Disattiva</button>
+          <button onClick={bulkDelete} className="inline-flex items-center gap-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg"><Icon name="trash" className="w-3.5 h-3.5" />Elimina</button>
+          <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-xs font-medium text-blue-200 hover:text-white px-2">Annulla</button>
+        </div>
+      )}
+
+      {selectedCourse && (
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <p className="text-sm text-gray-500">{filteredQs.length} domande</p>
           <div className="flex gap-2 flex-wrap">
@@ -1263,9 +1339,11 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
 
       {loading && <Spinner className="mt-10" />}
 
-      {!loading && selectedCourse && filteredQs.map(q => (
-        <Card key={q.id} className="border border-gray-100">
+      {!loading && selectedCourse && pageQs.map(q => (
+        <Card key={q.id} className={`border ${selectedIds.has(q.id) ? 'border-[rgb(32,44,71)] ring-1 ring-[rgb(32,44,71)]' : 'border-gray-100'}`}>
           <div className="flex items-start justify-between gap-3">
+            <input type="checkbox" checked={selectedIds.has(q.id)} onChange={() => toggleSelect(q.id)}
+              className="mt-1 w-4 h-4 flex-shrink-0 accent-[rgb(32,44,71)] cursor-pointer" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{q.macro_area_name}</span>
@@ -1298,6 +1376,20 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
           </div>
         </Card>
       ))}
+
+      {!loading && selectedCourse && pageCount > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-1">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage <= 1}
+            className="inline-flex items-center gap-1 text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 disabled:opacity-40 hover:bg-gray-50">
+            <Icon name="chevron-left" className="w-4 h-4" />Prec.
+          </button>
+          <span className="text-sm text-gray-500 tabular-nums px-2">Pagina {safePage} di {pageCount}</span>
+          <button onClick={() => setPage(p => Math.min(pageCount, p + 1))} disabled={safePage >= pageCount}
+            className="inline-flex items-center gap-1 text-sm font-medium px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 disabled:opacity-40 hover:bg-gray-50">
+            Succ.<Icon name="chevron-right" className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {!loading && selectedCourse && filteredQs.length === 0 && (
         <Card className="text-center py-10 text-gray-400">
