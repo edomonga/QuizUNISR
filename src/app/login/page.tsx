@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signIn } from '@/lib/authHelpers';
+import { consumeKicked } from '@/lib/deviceSession';
 import { useAuth } from '@/contexts/AuthContext';
 import { Icon } from '@/components/Icon';
 
@@ -10,9 +11,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { user, loading: authLoading, refresh } = useAuth();
+
+  // Se siamo finiti qui perché un altro dispositivo ha preso il nostro posto,
+  // mostra un avviso chiaro (una sola volta).
+  useEffect(() => {
+    if (consumeKicked()) {
+      setNotice('Sei stato disconnesso perché è stato effettuato l’accesso da un altro dispositivo. Ogni account può essere usato su un solo dispositivo alla volta.');
+    }
+  }, []);
 
   // Rete di sicurezza: se risulti già autenticato (anche dopo un rimbalzo dovuto
   // a un intoppo momentaneo), entra automaticamente invece di restare qui.
@@ -49,6 +59,12 @@ export default function LoginPage() {
 
         <div className="bg-white rounded-3xl shadow-2xl p-8">
           <h2 className="text-xl font-bold text-[rgb(32,44,71)] mb-6">Accedi</h2>
+
+          {notice && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-medium flex items-start gap-2">
+              <Icon name="alert" className="w-4 h-4 mt-0.5 flex-shrink-0" /><span>{notice}</span>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium flex items-start gap-2">

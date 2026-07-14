@@ -138,4 +138,6 @@ export interface AuthUser {
   is_active: boolean;
   must_change_password?: boolean;
   year?: number | null;
+  // Sessione attiva corrente (regola "un solo dispositivo per utente").
+  active_session_id?: string | null;
 }
