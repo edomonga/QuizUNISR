@@ -44,10 +44,10 @@ export default function AdminPage() {
     if (!loading && (!user || !user.is_admin)) router.push('/dashboard');
   }, [user, loading, router]);
 
-  // Un admin limitato non ha le tab "Utenti" e "Segnalazioni": se ci finisce
-  // (stato iniziale) lo spostiamo su "Materie".
+  // Un admin limitato non ha la tab "Utenti": se ci finisce (stato iniziale)
+  // lo spostiamo su "Materie".
   useEffect(() => {
-    if (!isSuper && (tab === 'users' || tab === 'reports')) setTab('courses');
+    if (!isSuper && tab === 'users') setTab('courses');
   }, [isSuper, tab]);
 
   if (loading) return <PageShell><Spinner className="mt-20" /></PageShell>;
@@ -59,7 +59,8 @@ export default function AdminPage() {
     ['questions', 'Domande', 'list'],
     ['reports', 'Segnalazioni', 'inbox'],
   ];
-  const tabs = isSuper ? allTabs : allTabs.filter(([t]) => t === 'courses' || t === 'questions');
+  // L'admin limitato vede tutto tranne la gestione Utenti.
+  const tabs = isSuper ? allTabs : allTabs.filter(([t]) => t !== 'users');
 
   return (
     <PageShell>
@@ -70,7 +71,7 @@ export default function AdminPage() {
           <div className="mb-5 flex items-start gap-2 rounded-2xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
             <Icon name="shield" className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <span>
-              Sei un <strong>admin limitato</strong>: puoi gestire materie e domande
+              Sei un <strong>admin limitato</strong>: puoi gestire materie, domande e segnalazioni
               {allowedYears && allowedYears.length > 0
                 ? <> degli anni <strong>{[...allowedYears].sort((a, b) => a - b).map(y => `${y}°`).join(', ')}</strong>.</>
                 : <>, ma non ti è ancora stato assegnato alcun anno: contatta un super admin.</>}
@@ -92,7 +93,7 @@ export default function AdminPage() {
         {tab === 'users' && isSuper && <UsersTab />}
         {tab === 'courses' && <CoursesTab allowedYears={allowedYears} />}
         {tab === 'questions' && <QuestionsTab jumpToText={jumpText} onJumpHandled={() => setJumpText('')} allowedYears={allowedYears} />}
-        {tab === 'reports' && isSuper && <ReportsTab onGotoQuestion={(text) => { setJumpText(text); setTab('questions'); }} />}
+        {tab === 'reports' && <ReportsTab onGotoQuestion={(text) => { setJumpText(text); setTab('questions'); }} />}
       </div>
     </PageShell>
   );

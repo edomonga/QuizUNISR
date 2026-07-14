@@ -214,17 +214,19 @@ sufficiente).
 Puoi avere due tipi di amministratore:
 
 - **Super admin** — potere pieno: gestione utenti, tutte le materie/domande, segnalazioni e assegnazione dei permessi agli altri admin.
-- **Admin limitato** — può gestire **solo le materie e le domande degli anni che gli assegni** (es. solo 3° e 4°). Non vede la sezione Utenti né le Segnalazioni.
+- **Admin limitato** — può gestire **solo materie, domande e segnalazioni degli anni che gli assegni** (es. solo 3° e 4°). Non vede la sezione Utenti.
 
 ### PASSO — Aggiorna il database
 
 1. Supabase → **SQL Editor** → **New query**
-2. Apri il file `supabase_admin_roles.sql`, copia **tutto** e incolla
-3. Clicca **Run** (l'avviso "operazioni distruttive" è normale: lo script
-   ricrea alcune policy di sicurezza, non cancella dati)
+2. Esegui, uno dopo l'altro, **tutto** il contenuto di questi due file:
+   - `supabase_admin_roles.sql` — ruoli, colonne, policy per anno
+   - `supabase_admin_reports_scope.sql` — segnalazioni degli admin limitati per anno
+3. Clicca **Run** (l'avviso "operazioni distruttive" è normale: gli script
+   ricreano alcune policy di sicurezza, non cancellano dati)
 
-> Lo script promuove automaticamente gli admin attuali a **super admin**, così
-> non resti mai chiuso fuori. Eseguilo **prima** di pubblicare la nuova versione.
+> Il primo script promuove automaticamente gli admin attuali a **super admin**,
+> così non resti mai chiuso fuori. Eseguili **prima** di pubblicare la nuova versione.
 
 ### Come si usa (dal pannello Admin → Utenti)
 

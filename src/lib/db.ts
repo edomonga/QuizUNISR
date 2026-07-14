@@ -339,12 +339,14 @@ export async function getReports(status?: string): Promise<QuestionReport[]> {
   const questionIds = Array.from(new Set(reports.map(r => r.question_id).filter(Boolean)));
 
   const [{ data: profs }, { data: qs }, courses] = await Promise.all([
-    userIds.length ? supabase.from('profiles').select('id, display_name').in('id', userIds) : Promise.resolve({ data: [] as any[] }),
+    // Nomi dei segnalatori via RPC (security definer): funziona anche per gli
+    // admin limitati, che non possono leggere direttamente la tabella profiles.
+    userIds.length ? supabase.rpc('admin_display_names', { ids: userIds }) : Promise.resolve({ data: [] as any[] }),
     questionIds.length ? supabase.from('questions').select('id, course_id').in('id', questionIds) : Promise.resolve({ data: [] as any[] }),
     getCachedCourses(),
   ]);
 
-  const nameById = new Map((profs ?? []).map((p: any) => [p.id, p.display_name]));
+  const nameById = new Map(((profs ?? []) as any[]).map((p: any) => [p.id as string, (p.display_name ?? null) as string | null]));
   const courseIdByQ = new Map((qs ?? []).map((x: any) => [x.id, x.course_id]));
   const courseNameById = new Map(courses.map(c => [c.id, c.name]));
 
