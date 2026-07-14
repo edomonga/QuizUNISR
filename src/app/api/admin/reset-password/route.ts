@@ -8,7 +8,7 @@
 // sicuro (fail-closed).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, requireAdmin } from '@/lib/adminAuth';
+import { getSupabaseAdmin, requireSuperAdmin } from '@/lib/adminAuth';
 
 export const runtime = 'nodejs';
 
@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
 
-    // 1. Autenticazione OBBLIGATORIA: solo admin attivi.
-    const check = await requireAdmin(supabaseAdmin, req.headers.get('Authorization'));
+    // 1. Autenticazione OBBLIGATORIA: solo super admin attivi.
+    const check = await requireSuperAdmin(supabaseAdmin, req.headers.get('Authorization'));
     if (!check.ok) {
       return NextResponse.json({ error: check.error }, { status: check.status });
     }

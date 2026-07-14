@@ -72,7 +72,7 @@ export async function signOut() {
 export async function getProfile(userId: string): Promise<AuthUser | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, email, display_name, is_admin, is_active, must_change_password, year, active_session_id')
+    .select('id, email, display_name, is_admin, is_active, is_super_admin, admin_years, must_change_password, year, active_session_id')
     .eq('id', userId)
     .single();
 
@@ -83,6 +83,8 @@ export async function getProfile(userId: string): Promise<AuthUser | null> {
     display_name: data.display_name,
     is_admin: data.is_admin,
     is_active: data.is_active,
+    is_super_admin: data.is_super_admin ?? false,
+    admin_years: data.admin_years ?? [],
     must_change_password: data.must_change_password ?? false,
     year: data.year ?? null,
     active_session_id: data.active_session_id ?? null,

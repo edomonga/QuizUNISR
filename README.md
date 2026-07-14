@@ -206,3 +206,32 @@ sufficiente).
   quanti dispositivi accede ciascun utente (indizio di condivisione).
 - L'email all'amministratore parte **solo la prima volta** che un utente usa
   un determinato dispositivo, per evitare avvisi ripetuti ad ogni accesso.
+
+---
+
+## Ruoli admin: super admin e admin limitati per anno
+
+Puoi avere due tipi di amministratore:
+
+- **Super admin** — potere pieno: gestione utenti, tutte le materie/domande, segnalazioni e assegnazione dei permessi agli altri admin.
+- **Admin limitato** — può gestire **solo le materie e le domande degli anni che gli assegni** (es. solo 3° e 4°). Non vede la sezione Utenti né le Segnalazioni.
+
+### PASSO — Aggiorna il database
+
+1. Supabase → **SQL Editor** → **New query**
+2. Apri il file `supabase_admin_roles.sql`, copia **tutto** e incolla
+3. Clicca **Run** (l'avviso "operazioni distruttive" è normale: lo script
+   ricrea alcune policy di sicurezza, non cancella dati)
+
+> Lo script promuove automaticamente gli admin attuali a **super admin**, così
+> non resti mai chiuso fuori. Eseguilo **prima** di pubblicare la nuova versione.
+
+### Come si usa (dal pannello Admin → Utenti)
+
+Per ogni utente attivo trovi un selettore di ruolo con tre voci:
+
+- **Utente** — nessun potere di amministrazione.
+- **Limitato** — admin ristretto: sotto compaiono i pulsanti degli **anni** (1°–6°); accendi quelli che deve poter gestire.
+- **Super** — potere pieno come te.
+
+Il limite è applicato anche a livello di database (RLS): un admin limitato **non può** modificare, nemmeno via URL o API, contenuti di anni non suoi. Il tuo stesso account è protetto (non puoi declassarti o eliminarti da solo per errore).
