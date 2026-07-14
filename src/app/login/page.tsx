@@ -103,6 +103,16 @@ export default function LoginPage() {
               Registrati
             </Link>
           </p>
+
+          <p className="mt-3 text-center text-xs text-gray-400">
+            Problemi ad accedere?{' '}
+            <a
+              href="mailto:info@uniquiz.pro?subject=Problema%20di%20accesso%20a%20UniQuiz"
+              className="font-medium text-[color:var(--sig)] hover:underline"
+            >
+              Scrivici a info@uniquiz.pro
+            </a>
+          </p>
         </div>
       </div>
     </div>
