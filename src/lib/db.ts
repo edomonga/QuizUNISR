@@ -284,7 +284,7 @@ export async function getAllProfiles(): Promise<Profile[]> {
   return (data ?? []) as Profile[];
 }
 
-export async function updateProfile(id: string, patch: Partial<Pick<Profile, 'display_name' | 'is_admin' | 'is_active' | 'year'>>): Promise<{ error: string | null }> {
+export async function updateProfile(id: string, patch: Partial<Pick<Profile, 'display_name' | 'is_admin' | 'is_active' | 'is_super_admin' | 'admin_years' | 'year'>>): Promise<{ error: string | null }> {
   const { error } = await supabase.from('profiles').update(patch).eq('id', id);
   return { error: error?.message ?? null };
 }

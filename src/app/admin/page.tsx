@@ -34,6 +34,9 @@ const DEFAULT_RULES: ExamRules = {
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const isSuper = !!user?.is_super_admin;
+  // Anni gestibili: null per il super admin (tutti), l'elenco per l'admin limitato.
+  const allowedYears = isSuper ? null : (user?.admin_years ?? []);
   const [tab, setTab] = useState<Tab>('users');
   const [jumpText, setJumpText] = useState('');
 
@@ -41,17 +44,43 @@ export default function AdminPage() {
     if (!loading && (!user || !user.is_admin)) router.push('/dashboard');
   }, [user, loading, router]);
 
+  // Un admin limitato non ha le tab "Utenti" e "Segnalazioni": se ci finisce
+  // (stato iniziale) lo spostiamo su "Materie".
+  useEffect(() => {
+    if (!isSuper && (tab === 'users' || tab === 'reports')) setTab('courses');
+  }, [isSuper, tab]);
+
   if (loading) return <PageShell><Spinner className="mt-20" /></PageShell>;
   if (!user?.is_admin) return null;
+
+  const allTabs: [Tab, string, IconName][] = [
+    ['users', 'Utenti', 'users'],
+    ['courses', 'Materie', 'folder'],
+    ['questions', 'Domande', 'list'],
+    ['reports', 'Segnalazioni', 'inbox'],
+  ];
+  const tabs = isSuper ? allTabs : allTabs.filter(([t]) => t === 'courses' || t === 'questions');
 
   return (
     <PageShell>
       <div className="max-w-4xl mx-auto px-4">
         <PageHeader title="Pannello Admin" back="/dashboard" />
 
+        {!isSuper && (
+          <div className="mb-5 flex items-start gap-2 rounded-2xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+            <Icon name="shield" className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <span>
+              Sei un <strong>admin limitato</strong>: puoi gestire materie e domande
+              {allowedYears && allowedYears.length > 0
+                ? <> degli anni <strong>{[...allowedYears].sort((a, b) => a - b).map(y => `${y}°`).join(', ')}</strong>.</>
+                : <>, ma non ti è ancora stato assegnato alcun anno: contatta un super admin.</>}
+            </span>
+          </div>
+        )}
+
         {/* Tab bar */}
         <div className="flex gap-1 bg-white rounded-2xl p-1 border border-gray-100 mb-6 shadow-sm overflow-x-auto">
-          {([['users', 'Utenti', 'users'], ['courses', 'Materie', 'folder'], ['questions', 'Domande', 'list'], ['reports', 'Segnalazioni', 'inbox']] as [Tab, string, IconName][]).map(([t, label, icon]) => (
+          {tabs.map(([t, label, icon]) => (
             <button key={t} onClick={() => setTab(t)}
               className={`flex items-center justify-center gap-1.5 flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${tab === t ? 'bg-[rgb(32,44,71)] text-white shadow' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
               <Icon name={icon} className="w-4 h-4" />
@@ -60,10 +89,10 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {tab === 'users' && <UsersTab />}
-        {tab === 'courses' && <CoursesTab />}
-        {tab === 'questions' && <QuestionsTab jumpToText={jumpText} onJumpHandled={() => setJumpText('')} />}
-        {tab === 'reports' && <ReportsTab onGotoQuestion={(text) => { setJumpText(text); setTab('questions'); }} />}
+        {tab === 'users' && isSuper && <UsersTab />}
+        {tab === 'courses' && <CoursesTab allowedYears={allowedYears} />}
+        {tab === 'questions' && <QuestionsTab jumpToText={jumpText} onJumpHandled={() => setJumpText('')} allowedYears={allowedYears} />}
+        {tab === 'reports' && isSuper && <ReportsTab onGotoQuestion={(text) => { setJumpText(text); setTab('questions'); }} />}
       </div>
     </PageShell>
   );
@@ -79,6 +108,7 @@ function generateTempPassword(): string {
 
 // ─── USERS TAB ────────────────────────────────────────────────────────────────
 function UsersTab() {
+  const { user: currentUser } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -104,6 +134,24 @@ function UsersTab() {
     const { error } = await updateProfile(id, { [field]: val });
     if (error) flash('err', error);
     else { flash('ok', 'Aggiornato.'); load(); }
+  };
+
+  // Imposta il ruolo di un utente: 'user' (nessun admin), 'limited' (admin per
+  // anni) o 'super' (potere pieno). Gli anni valgono solo per il ruolo 'limited'.
+  const setRole = async (id: string, role: 'user' | 'limited' | 'super', years: number[] = []) => {
+    const patch =
+      role === 'user'  ? { is_admin: false, is_super_admin: false, admin_years: [] } :
+      role === 'super' ? { is_admin: true,  is_super_admin: true,  admin_years: [] } :
+                         { is_admin: true,  is_super_admin: false, admin_years: years };
+    const { error } = await updateProfile(id, patch);
+    if (error) flash('err', error);
+    else { flash('ok', 'Ruolo aggiornato.'); load(); }
+  };
+
+  const setYears = async (id: string, years: number[]) => {
+    const { error } = await updateProfile(id, { admin_years: years });
+    if (error) flash('err', error);
+    else load();
   };
 
   const activateAll = async (ids: string[]) => {
@@ -151,9 +199,14 @@ function UsersTab() {
     if (!resetModal) return;
     setResetLoading(true);
     try {
+      const { data: { session } } = await (await import('@/lib/supabase')).supabase.auth.getSession();
+      const token = session?.access_token ?? '';
       const res = await fetch('/api/admin/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({ userId: resetModal.id, newPassword: tempPassword }),
       });
       const json = await res.json();
@@ -238,48 +291,81 @@ function UsersTab() {
           {active.length === 0 && (
             <p className="text-sm text-gray-400 text-center py-4">Nessun utente trovato.</p>
           )}
-          {active.map(p => (
-            <div key={p.id} className="p-3 bg-[rgb(240,242,247)] rounded-xl">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-[rgb(32,44,71)] text-sm">{p.display_name}</span>
-                    {p.year != null && <span className="text-[10px] font-bold bg-[color:var(--sig-soft)] text-[color:var(--sig)] px-1.5 py-0.5 rounded-full">{p.year}º Anno</span>}
-                    {p.is_admin && <span className="text-xs bg-amber-100 text-amber-700 font-medium px-1.5 py-0.5 rounded-full">Admin</span>}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-0.5">{p.email}</div>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => openReset(p)}
-                    className="inline-flex items-center gap-1.5 text-xs bg-white border border-blue-200 text-blue-600 font-medium px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors">
-                    <Icon name="key" className="w-3.5 h-3.5" />Reset pwd
-                  </button>
-                  <button
-                    onClick={() => toggle(p.id, 'is_admin', !p.is_admin)}
-                    className="text-xs bg-white border border-gray-200 text-gray-600 font-medium px-2.5 py-1 rounded-lg hover:bg-gray-50 transition-colors">
-                    {p.is_admin ? 'Rimuovi admin' : 'Rendi admin'}
-                  </button>
-                  <button
-                    onClick={() => toggle(p.id, 'is_active', false)}
-                    className="text-xs bg-white border border-amber-200 text-amber-600 font-medium px-2.5 py-1 rounded-lg hover:bg-amber-50 transition-colors">
-                    Disattiva
-                  </button>
-                  {confirmDel === p.id ? (
-                    <div className="flex gap-1">
-                      <button onClick={() => handleDelete(p.id)} className="text-xs bg-red-500 text-white font-medium px-2.5 py-1 rounded-lg">Conferma</button>
-                      <button onClick={() => setConfirmDel(null)} className="text-xs bg-gray-200 text-gray-600 font-medium px-2.5 py-1 rounded-lg">Annulla</button>
+          {active.map(p => {
+            const isSelf = currentUser?.id === p.id;
+            const role: 'user' | 'limited' | 'super' = p.is_super_admin ? 'super' : p.is_admin ? 'limited' : 'user';
+            const years = [...(p.admin_years ?? [])].sort((a, b) => a - b);
+            return (
+              <div key={p.id} className="p-3 bg-[rgb(240,242,247)] rounded-xl">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-[rgb(32,44,71)] text-sm">{p.display_name}</span>
+                      {p.year != null && <span className="text-[10px] font-bold bg-[color:var(--sig-soft)] text-[color:var(--sig)] px-1.5 py-0.5 rounded-full">{p.year}º Anno</span>}
+                      {role === 'super' && <span className="text-xs bg-amber-100 text-amber-700 font-medium px-1.5 py-0.5 rounded-full">Super admin</span>}
+                      {role === 'limited' && <span className="text-xs bg-blue-100 text-blue-700 font-medium px-1.5 py-0.5 rounded-full">Admin {years.length ? years.map(y => `${y}°`).join(',') : '— nessun anno'}</span>}
+                      {isSelf && <span className="text-[10px] font-semibold bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full">Tu</span>}
                     </div>
-                  ) : (
-                    <button onClick={() => setConfirmDel(p.id)}
-                      className="text-xs bg-white border border-red-200 text-red-500 font-medium px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors">
-                      Elimina
+                    <div className="text-xs text-gray-400 mt-0.5">{p.email}</div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => openReset(p)}
+                      className="inline-flex items-center gap-1.5 text-xs bg-white border border-blue-200 text-blue-600 font-medium px-2.5 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                      <Icon name="key" className="w-3.5 h-3.5" />Reset pwd
                     </button>
-                  )}
+                    {!isSelf && (
+                      <>
+                        {/* Selettore ruolo */}
+                        <div className="inline-flex rounded-lg border border-gray-200 overflow-hidden bg-white">
+                          {([['user', 'Utente'], ['limited', 'Limitato'], ['super', 'Super']] as ['user' | 'limited' | 'super', string][]).map(([r, lbl]) => (
+                            <button key={r}
+                              onClick={() => role !== r && setRole(p.id, r, r === 'limited' ? (p.admin_years ?? []) : [])}
+                              className={`text-xs font-medium px-2.5 py-1 transition-colors ${role === r ? 'bg-[rgb(32,44,71)] text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+                              {lbl}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => toggle(p.id, 'is_active', false)}
+                          className="text-xs bg-white border border-amber-200 text-amber-600 font-medium px-2.5 py-1 rounded-lg hover:bg-amber-50 transition-colors">
+                          Disattiva
+                        </button>
+                        {confirmDel === p.id ? (
+                          <div className="flex gap-1">
+                            <button onClick={() => handleDelete(p.id)} className="text-xs bg-red-500 text-white font-medium px-2.5 py-1 rounded-lg">Conferma</button>
+                            <button onClick={() => setConfirmDel(null)} className="text-xs bg-gray-200 text-gray-600 font-medium px-2.5 py-1 rounded-lg">Annulla</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setConfirmDel(p.id)}
+                            className="text-xs bg-white border border-red-200 text-red-500 font-medium px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors">
+                            Elimina
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
+
+                {/* Anni gestibili — solo per un admin limitato */}
+                {!isSelf && role === 'limited' && (
+                  <div className="mt-2 flex items-center gap-1.5 flex-wrap border-t border-gray-200 pt-2">
+                    <span className="text-xs text-gray-500 mr-1">Anni gestibili:</span>
+                    {[1, 2, 3, 4, 5, 6].map(y => {
+                      const on = (p.admin_years ?? []).includes(y);
+                      return (
+                        <button key={y}
+                          onClick={() => setYears(p.id, on ? (p.admin_years ?? []).filter(x => x !== y) : [...(p.admin_years ?? []), y])}
+                          className={`text-xs font-medium w-8 py-1 rounded-lg border transition-colors ${on ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'}`}>
+                          {y}°
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
 
@@ -339,7 +425,7 @@ function UsersTab() {
 }
 
 // ─── COURSES TAB ──────────────────────────────────────────────────────────────
-function CoursesTab() {
+function CoursesTab({ allowedYears }: { allowedYears: number[] | null }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [areas, setAreas] = useState<Record<string, MacroArea[]>>({});
   const [topics, setTopics] = useState<Record<string, Topic[]>>({});
@@ -351,8 +437,15 @@ function CoursesTab() {
   const [showTopicModal, setShowTopicModal] = useState<{ courseId: string; areaId: string } | null>(null);
   const [confirmDelCourse, setConfirmDelCourse] = useState<string | null>(null);
 
+  // Admin limitato: mostra solo le materie degli anni assegnati.
+  const inScope = useCallback(
+    (c: Course) => allowedYears === null || (c.year != null && allowedYears.includes(c.year)),
+    [allowedYears]
+  );
+
   const load = useCallback(async () => {
-    const cs = await getCourses();
+    const all = await getCourses();
+    const cs = all.filter(inScope);
     setCourses(cs);
     const aMap: Record<string, MacroArea[]> = {};
     const tMap: Record<string, Topic[]> = {};
@@ -362,7 +455,7 @@ function CoursesTab() {
     }
     setAreas(aMap); setTopics(tMap);
     setLoading(false);
-  }, []);
+  }, [inScope]);
   useEffect(() => { load(); }, [load]);
 
   const flash = (type: 'ok' | 'err', text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3500); };
@@ -471,6 +564,7 @@ function CoursesTab() {
       {showCourseModal && (
         <CourseModal
           initial={editingCourse ?? {}}
+          allowedYears={allowedYears}
           onClose={() => setShowCourseModal(false)}
           onSave={async data => {
             const { error } = await upsertCourse(data as any);
@@ -525,8 +619,9 @@ function SimpleNameModal({ title, onClose, onSave }: { title: string; onClose: (
   );
 }
 
-function CourseModal({ initial, onClose, onSave }: {
+function CourseModal({ initial, allowedYears, onClose, onSave }: {
   initial: Partial<Course>;
+  allowedYears: number[] | null;
   onClose: () => void;
   onSave: (data: Partial<Course>) => void;
 }) {
@@ -539,7 +634,9 @@ function CourseModal({ initial, onClose, onSave }: {
     border_color: initial.border_color ?? 'border-blue-200',
     is_available: initial.is_available ?? true,
     exam_rules: initial.exam_rules ?? DEFAULT_RULES,
-    year: initial.year ?? null,             // ← NUOVO: anno di corso
+    // Anno di corso. Per un admin limitato che crea una nuova materia,
+    // pre-seleziona il primo anno consentito (evita salvataggi bloccati dalla RLS).
+    year: initial.year ?? (allowedYears && allowedYears.length > 0 ? [...allowedYears].sort((a, b) => a - b)[0] : null),
     ...(initial.id ? { id: initial.id } : {}),
   });
   const [courseAreas, setCourseAreas] = useState<MacroArea[]>([]);
@@ -697,7 +794,8 @@ function CourseModal({ initial, onClose, onSave }: {
         <div>
           <p className="text-sm font-medium text-gray-700 mb-2">Anno di corso</p>
           <div className="flex flex-wrap gap-2">
-            {([null, 1, 2, 3, 4, 5, 6] as (number | null)[]).map(y => (
+            {/* Il super admin sceglie qualsiasi anno; l'admin limitato solo i suoi. */}
+            {((allowedYears === null ? [null, 1, 2, 3, 4, 5, 6] : [...allowedYears].sort((a, b) => a - b)) as (number | null)[]).map(y => (
               <button
                 key={y ?? 'none'}
                 type="button"
@@ -881,7 +979,7 @@ function parseCorrect(val: unknown, optCount: number): number[] {
   }, []);
 }
 
-function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string; onJumpHandled?: () => void }) {
+function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpToText?: string; onJumpHandled?: () => void; allowedYears: number[] | null }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState('');
   const [areas, setAreas] = useState<MacroArea[]>([]);
@@ -903,7 +1001,12 @@ function QuestionsTab({ jumpToText = '', onJumpHandled }: { jumpToText?: string;
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 25;
 
-  useEffect(() => { getCourses().then(setCourses); }, []);
+  // Admin limitato: solo le materie degli anni assegnati.
+  useEffect(() => {
+    getCourses().then(all =>
+      setCourses(allowedYears === null ? all : all.filter(c => c.year != null && allowedYears.includes(c.year)))
+    );
+  }, [allowedYears]);
 
   useEffect(() => {
     if (jumpToText) {

@@ -6,6 +6,10 @@ export interface Profile {
   display_name: string;
   is_admin: boolean;
   is_active: boolean;
+  // Super admin: potere pieno (utenti, tutte le materie, permessi).
+  is_super_admin: boolean;
+  // Anni gestibili da un admin limitato (vuoto = nessuno / non applicabile).
+  admin_years: number[];
   must_change_password?: boolean;
   year?: number | null;
   created_at: string;
@@ -136,6 +140,10 @@ export interface AuthUser {
   display_name: string;
   is_admin: boolean;
   is_active: boolean;
+  // Super admin: potere pieno. Admin limitato: is_admin true, is_super_admin false.
+  is_super_admin: boolean;
+  // Anni di corso gestibili da un admin limitato.
+  admin_years: number[];
   must_change_password?: boolean;
   year?: number | null;
   // Sessione attiva corrente (regola "un solo dispositivo per utente").
