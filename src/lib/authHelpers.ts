@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { claimSession, clearLocalSessionId } from './deviceSession';
 import type { AuthUser } from '@/types';
 
 const ALLOWED_DOMAIN = '@studenti.unisr.it';
@@ -30,6 +31,12 @@ export async function signUp(email: string, password: string, displayName: strin
 
 /** Sign in with email + password */
 export async function signIn(email: string, password: string): Promise<{ user: AuthUser | null; error: string | null }> {
+  // Azzera SUBITO l'id di sessione locale: durante il login l'evento SIGNED_IN
+  // può far partire il controllo "un solo dispositivo" prima che la nuova
+  // sessione sia rivendicata. Con l'id locale assente il controllo non
+  // disconnette (vedi shouldSignOut), evitando di buttarci fuori da soli.
+  clearLocalSessionId();
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { user: null, error: 'Email o password non corretti.' };
 
@@ -45,11 +52,19 @@ export async function signIn(email: string, password: string): Promise<{ user: A
     return { user: null, error: 'Account non ancora attivato. Controlla la tua email oppure contatta un amministratore.' };
   }
 
+  // Rivendica la sessione per QUESTO dispositivo: imposta active_session_id
+  // lato server (disconnettendo l'eventuale dispositivo precedente) e salva
+  // localmente l'id ricevuto. Va fatto PRIMA che il controllo periodico giri.
+  if (data.session?.access_token) {
+    await claimSession(data.session.access_token);
+  }
+
   return { user: profile, error: null };
 }
 
 /** Sign out */
 export async function signOut() {
+  clearLocalSessionId();
   await supabase.auth.signOut();
 }
 
@@ -57,7 +72,7 @@ export async function signOut() {
 export async function getProfile(userId: string): Promise<AuthUser | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('id, email, display_name, is_admin, is_active, must_change_password, year')
+    .select('id, email, display_name, is_admin, is_active, must_change_password, year, active_session_id')
     .eq('id', userId)
     .single();
 
@@ -70,6 +85,7 @@ export async function getProfile(userId: string): Promise<AuthUser | null> {
     is_active: data.is_active,
     must_change_password: data.must_change_password ?? false,
     year: data.year ?? null,
+    active_session_id: data.active_session_id ?? null,
   };
 }
 

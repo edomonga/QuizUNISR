@@ -145,3 +145,64 @@ npm install
 npm run dev
 # Apri http://localhost:3000
 ```
+
+---
+
+## Un solo dispositivo per utente (anti-condivisione password)
+
+Per un'app in abbonamento serve evitare che una password venga condivisa fra
+più persone. Con questa funzione **ogni account può essere attivo su un solo
+dispositivo alla volta**: quando qualcuno accede da un nuovo dispositivo, il
+dispositivo precedente viene **disconnesso automaticamente** (il nuovo vince).
+Inoltre, ad ogni accesso da un **dispositivo mai visto** viene inviata una
+**email di avviso all'amministratore**.
+
+### PASSO A — Aggiorna il database
+
+1. Supabase → **SQL Editor** → **New query**
+2. Apri il file `supabase_single_device.sql`, copia **tutto** e incolla
+3. Clicca **Run**
+
+> ⚠️ Esegui questo SQL **prima** di pubblicare la nuova versione del sito:
+> il codice legge la colonna `active_session_id`, che viene creata da questo
+> script. Se pubblichi il codice senza aver eseguito prima l'SQL, il login
+> smette temporaneamente di funzionare finché non lo esegui.
+
+### PASSO B — Configura l'email di notifica (provider Resend, gratuito)
+
+Le notifiche usano [Resend](https://resend.com) (piano gratuito ampiamente
+sufficiente).
+
+1. Crea un account su **https://resend.com** e conferma la mail
+2. Vai su **API Keys** → **Create API Key** → copia la chiave (inizia con `re_`)
+3. (Consigliato) Per usare un mittente tuo, verifica un dominio in
+   **Domains**. Se non hai un dominio, puoi lasciare il mittente di default
+   `onboarding@resend.dev` (funziona subito, senza verifica)
+4. Su **Vercel** → il tuo progetto → **Settings** → **Environment Variables**
+   aggiungi (per **All environments**):
+
+| Nome | Valore | Obbligatoria |
+|------|--------|--------------|
+| `RESEND_API_KEY` | la chiave `re_...` copiata da Resend | Sì |
+| `ADMIN_NOTIFICATION_EMAIL` | l'email dove ricevere gli avvisi (la tua) | Sì |
+| `EMAIL_FROM` | mittente, es. `UniQuiz <no-reply@tuodominio.it>` | No (default `onboarding@resend.dev`) |
+
+5. **Redeploy** del progetto su Vercel
+
+> Se `RESEND_API_KEY` o `ADMIN_NOTIFICATION_EMAIL` non sono impostate, il sito
+> continua a funzionare normalmente (l'anti-condivisione resta attivo): viene
+> semplicemente saltato l'invio dell'email.
+
+### Come funziona in pratica
+
+- Al login viene creato un identificativo di sessione unico salvato sul
+  profilo dell'utente. Ogni dispositivo controlla ogni ~45 secondi (e quando
+  la scheda torna in primo piano) se è ancora la sessione valida: se un altro
+  dispositivo ha effettuato l'accesso, viene disconnesso con il messaggio
+  *"Sei stato disconnesso perché è stato effettuato l'accesso da un altro
+  dispositivo"*.
+- Ogni dispositivo viene registrato nella tabella `user_devices`. Puoi
+  consultarla da Supabase → **Table Editor** → `user_devices` per vedere da
+  quanti dispositivi accede ciascun utente (indizio di condivisione).
+- L'email all'amministratore parte **solo la prima volta** che un utente usa
+  un determinato dispositivo, per evitare avvisi ripetuti ad ogni accesso.
