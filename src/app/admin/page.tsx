@@ -230,7 +230,11 @@ function UsersTab() {
       p.email?.toLowerCase().includes(q)
     );
 
-  const pending = filterProfiles(profiles.filter(p => !p.is_active));
+  // In attesa di attivazione: solo chi ha GIÀ confermato l'email. Chi non l'ha
+  // ancora confermata non è approvabile (non potrebbe comunque accedere) e resta
+  // fuori dalla lista, con un contatore per trasparenza.
+  const pending = filterProfiles(profiles.filter(p => !p.is_active && p.email_confirmed));
+  const awaitingEmailCount = profiles.filter(p => !p.is_active && !p.email_confirmed).length;
   const active = filterProfiles(profiles.filter(p => p.is_active));
 
   return (
@@ -254,6 +258,16 @@ function UsersTab() {
           </button>
         )}
       </div>
+
+      {awaitingEmailCount > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
+          <Icon name="mail" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+          <span>
+            {awaitingEmailCount} {awaitingEmailCount === 1 ? 'utente registrato non ha' : 'utenti registrati non hanno'} ancora
+            confermato l&apos;email: {awaitingEmailCount === 1 ? 'comparirà' : 'compariranno'} qui per l&apos;attivazione dopo la conferma.
+          </span>
+        </div>
+      )}
 
       {pending.length > 0 && (
         <Card className="border-2 border-amber-200">
