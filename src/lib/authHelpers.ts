@@ -38,7 +38,15 @@ export async function signIn(email: string, password: string): Promise<{ user: A
   clearLocalSessionId();
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { user: null, error: 'Email o password non corretti.' };
+  if (error) {
+    // Se l'email non è ancora stata confermata, spiegalo in modo chiaro invece
+    // del generico "credenziali errate" (che confonderebbe chi si è appena iscritto).
+    const msg = (error.message || '').toLowerCase();
+    if (msg.includes('not confirmed') || (error as { code?: string }).code === 'email_not_confirmed') {
+      return { user: null, error: 'Devi prima confermare la tua email: controlla la casella di posta (anche nello spam) e clicca sul link di conferma.' };
+    }
+    return { user: null, error: 'Email o password non corretti.' };
+  }
 
   const profile = await getProfile(data.user.id);
   // Se il profilo manca o non è attivo, chiudi SUBITO la sessione: altrimenti
