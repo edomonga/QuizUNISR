@@ -10,6 +10,8 @@ export interface Profile {
   is_super_admin: boolean;
   // Anni gestibili da un admin limitato (vuoto = nessuno / non applicabile).
   admin_years: number[];
+  // True quando l'utente ha confermato la propria email (sync da auth.users).
+  email_confirmed: boolean;
   must_change_password?: boolean;
   year?: number | null;
   created_at: string;
