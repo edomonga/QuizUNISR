@@ -390,7 +390,9 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
                           ? cur_a.filter(i => i !== idx)
                           : [...cur_a, idx];
                       } else {
-                        next_a = [idx];
+                        // Ricliccando la risposta già scelta la si deseleziona:
+                        // così è possibile lasciare la domanda in bianco (omessa).
+                        next_a = cur_a.includes(idx) ? [] : [idx];
                       }
                       const na2 = [...answers];
                       na2[cur] = next_a;
@@ -755,7 +757,8 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
                     if (rule.allow_multiple_correct) {
                       a[preCur] = a[preCur].includes(idx) ? a[preCur].filter(i => i !== idx) : [...a[preCur], idx];
                     } else {
-                      a[preCur] = [idx];
+                      // Ricliccando la risposta già scelta la si deseleziona (domanda in bianco).
+                      a[preCur] = a[preCur].includes(idx) ? [] : [idx];
                     }
                     setPreAnswers(a);
                   }}>
