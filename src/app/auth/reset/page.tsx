@@ -61,9 +61,16 @@ function ResetInner() {
 
     setSaving(true);
     const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setError('Sessione di recupero non trovata. Riapri il link dall’email (usane uno nuovo, non uno già cliccato).');
+      setSaving(false);
+      return;
+    }
     const { error: updErr } = await supabase.auth.updateUser({ password });
     if (updErr) {
-      setError('Errore durante il salvataggio. Il link potrebbe essere scaduto: richiedine uno nuovo.');
+      // Mostra il messaggio tecnico reale per capire la causa (sessione, policy, ecc.).
+      console.error('reset updateUser:', updErr);
+      setError(`Errore durante il salvataggio: ${updErr.message}`);
       setSaving(false);
       return;
     }
