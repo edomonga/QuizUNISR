@@ -11,6 +11,19 @@ import { Icon } from '@/components/Icon';
 // dell'email di recupero. Il link è sul dominio dell'app
 // ({{ .SiteURL }}/auth/reset?token_hash=...&type=recovery) per la deliverability.
 
+// IMPORTANTE: Shell è definito a livello di modulo, NON dentro ResetInner.
+// Se fosse interno, verrebbe ricreato ad ogni render (ogni tasto premuto) e
+// React rimonterebbe i campi input facendogli perdere il focus.
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden nav-grad p-4">
+      <div aria-hidden className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[440px] h-[440px] rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle, rgba(18,147,143,.35), transparent 60%)' }} />
+      <div className="relative w-full max-w-md">{children}</div>
+    </div>
+  );
+}
+
 function ResetInner() {
   const router = useRouter();
   const params = useSearchParams();
@@ -65,14 +78,6 @@ function ResetInner() {
     setSaving(false);
     setPhase('done');
   };
-
-  const Shell = ({ children }: { children: React.ReactNode }) => (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden nav-grad p-4">
-      <div aria-hidden className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 w-[440px] h-[440px] rounded-full blur-3xl"
-        style={{ background: 'radial-gradient(circle, rgba(18,147,143,.35), transparent 60%)' }} />
-      <div className="relative w-full max-w-md">{children}</div>
-    </div>
-  );
 
   if (phase === 'verifying') {
     return <Shell><div className="bg-white rounded-3xl shadow-2xl p-8 text-center"><Spinner className="mb-4" /><p className="text-gray-600 text-sm">Verifica del link in corso…</p></div></Shell>;
