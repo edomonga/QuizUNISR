@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn } from '@/lib/authHelpers';
+import { signIn, sendPasswordReset } from '@/lib/authHelpers';
 import { consumeKicked } from '@/lib/deviceSession';
 import { useAuth } from '@/contexts/AuthContext';
 import { Icon } from '@/components/Icon';
@@ -13,6 +13,12 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
+  // Stato "Password dimenticata".
+  const [forgot, setForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotError, setForgotError] = useState('');
   const router = useRouter();
   const { user, loading: authLoading, refresh } = useAuth();
 
@@ -41,6 +47,15 @@ export default function LoginPage() {
     router.replace(user?.must_change_password ? '/change-password' : '/dashboard');
   };
 
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true); setForgotError('');
+    const { error: err } = await sendPasswordReset(forgotEmail);
+    setForgotLoading(false);
+    if (err) { setForgotError(err); return; }
+    setForgotSent(true);
+  };
+
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden p-4 nav-grad">
       <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[0.14]"
@@ -58,6 +73,8 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-3xl shadow-2xl p-8">
+          {!forgot ? (
+          <>
           <h2 className="text-xl font-bold text-[rgb(32,44,71)] mb-6">Accedi</h2>
 
           {notice && (
@@ -97,7 +114,15 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-5 text-center text-sm text-gray-500">
+          <p className="mt-4 text-center text-sm">
+            <button type="button"
+              onClick={() => { setForgot(true); setForgotEmail(email); setForgotError(''); setForgotSent(false); }}
+              className="font-medium text-[color:var(--sig)] hover:underline">
+              Password dimenticata?
+            </button>
+          </p>
+
+          <p className="mt-4 text-center text-sm text-gray-500">
             Non hai un account?{' '}
             <Link href="/register" className="font-semibold text-[color:var(--sig)] hover:underline">
               Registrati
@@ -113,6 +138,51 @@ export default function LoginPage() {
               Scrivici a info@uniquiz.pro
             </a>
           </p>
+          </>
+          ) : (
+          <>
+          <h2 className="text-xl font-bold text-[rgb(32,44,71)] mb-2">Reimposta la password</h2>
+          {forgotSent ? (
+            <div className="text-center py-2">
+              <div className="mx-auto my-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><Icon name="mail" className="h-7 w-7" /></div>
+              <p className="text-sm text-gray-600 leading-relaxed mb-5">
+                Se l&apos;indirizzo è registrato, ti abbiamo inviato un&apos;email con il link per reimpostare la password.
+                Controlla la posta (anche lo spam) e clicca sul link.
+              </p>
+              <button type="button" onClick={() => { setForgot(false); setForgotSent(false); }} className="btn-primary px-8">
+                Torna al login
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500 mb-5">Inserisci la tua email universitaria: ti invieremo un link per crearne una nuova.</p>
+              {forgotError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium flex items-start gap-2">
+                  <Icon name="alert" className="w-4 h-4 mt-0.5 flex-shrink-0" /><span>{forgotError}</span>
+                </div>
+              )}
+              <form onSubmit={handleForgot} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                  <input
+                    type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
+                    className="w-full border border-gray-300 bg-gray-50 rounded-xl px-4 py-2.5 text-base transition-shadow focus:outline-none focus:ring-2 focus:ring-[color:var(--sig)] focus:border-transparent focus:bg-white"
+                    placeholder="nome@studenti.unisr.it" required autoFocus
+                  />
+                </div>
+                <button type="submit" disabled={forgotLoading} className="btn-primary w-full py-3 text-base flex items-center justify-center gap-2">
+                  {forgotLoading ? 'Invio…' : <>Invia link di reset <Icon name="arrow-right" className="w-4 h-4" /></>}
+                </button>
+              </form>
+              <p className="mt-4 text-center text-sm">
+                <button type="button" onClick={() => setForgot(false)} className="font-medium text-gray-500 hover:underline">
+                  ← Torna al login
+                </button>
+              </p>
+            </>
+          )}
+          </>
+          )}
         </div>
       </div>
     </div>

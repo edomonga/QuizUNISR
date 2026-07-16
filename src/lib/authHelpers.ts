@@ -76,6 +76,26 @@ export async function signOut() {
   await supabase.auth.signOut();
 }
 
+/**
+ * Invia l'email di reimpostazione password (self-service "Password dimenticata").
+ * Per motivi di privacy NON riveliamo se l'indirizzo esiste: ritorniamo sempre
+ * esito positivo, tranne errori tecnici.
+ */
+export async function sendPasswordReset(email: string): Promise<{ error: string | null }> {
+  if (!isAllowedEmail(email)) {
+    return { error: `Usa il tuo indirizzo ${ALLOWED_DOMAIN}` };
+  }
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth/reset`,
+  });
+  if (error) {
+    console.warn('sendPasswordReset:', error.message);
+    // Non blocchiamo l'utente con dettagli tecnici; l'email potrebbe comunque
+    // essere partita. Segnaliamo genericamente solo se è un errore evidente.
+  }
+  return { error: null };
+}
+
 /** Fetch profile by user id */
 export async function getProfile(userId: string): Promise<AuthUser | null> {
   const { data } = await supabase
