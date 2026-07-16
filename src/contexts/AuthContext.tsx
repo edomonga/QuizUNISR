@@ -18,6 +18,14 @@ const AuthContext = createContext<AuthContextValue>({ user: null, loading: true,
 // la nostra (regola "un solo dispositivo per utente").
 const SESSION_CHECK_MS = 45_000;
 
+// Sulle pagine /auth/* (conferma email, reset password) la sessione è
+// TEMPORANEA e serve solo a completare l'operazione: NON va mai disconnessa
+// dall'enforcement "un solo dispositivo", altrimenti si annulla la sessione
+// di recupero prima che l'utente salvi la nuova password.
+function isAuthFlowRoute(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname.startsWith('/auth/');
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       const profile = await getProfile(session.user.id);
-      if (profile && !profile.is_active) {
+      if (profile && isAuthFlowRoute()) {
+        // Pagina /auth/*: non toccare la sessione (recupero/conferma in corso).
+        setUser(profile.is_active ? profile : null);
+      } else if (profile && !profile.is_active) {
         // Profilo caricato ed effettivamente NON attivo → sicurezza: esci.
         await supabase.auth.signOut();
         setUser(null);
@@ -64,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Controllo leggero della sola sessione attiva (senza ricaricare tutto il profilo).
   const checkActiveSession = async () => {
+    // Non applicare l'enforcement durante conferma email / reset password.
+    if (isAuthFlowRoute()) return;
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return;
     const { data } = await supabase
