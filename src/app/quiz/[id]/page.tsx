@@ -370,7 +370,13 @@ export default function QuizPage() {
             <span className="text-xs text-gray-400">{rawQ.topic_name}</span>
           </div>
 
-          <Card><p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{rawQ.question_text}</p></Card>
+          <Card>
+            {rawQ.image_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={rawQ.image_url} alt="Immagine della domanda" className="mb-3 block mx-auto max-h-72 w-auto max-w-full rounded-xl border border-gray-200" />
+            )}
+            <p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{rawQ.question_text}</p>
+          </Card>
           {allowMultiple && !answered && <p className="text-xs text-amber-600 font-medium flex items-center gap-1.5"><Icon name="alert" className="w-3.5 h-3.5" />Possono esserci più risposte corrette</p>}
 
           <div className="space-y-2">

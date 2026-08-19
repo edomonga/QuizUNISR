@@ -77,6 +77,8 @@ export interface Question {
   options: string[];
   correct_answers: number[];
   explanation?: string;
+  // URL dell'immagine allegata alla domanda (Supabase Storage). Facoltativa.
+  image_url?: string | null;
   is_active: boolean;
   shuffle_options: boolean;  // NEW: whether to shuffle options for this question
   created_at: string;
