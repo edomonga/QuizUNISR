@@ -1780,6 +1780,7 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
   const [imageUrl, setImageUrl] = useState(initial.image_url ?? '');
   const [imgBusy, setImgBusy] = useState(false);
   const [imgError, setImgError] = useState('');
+  const [saveError, setSaveError] = useState('');
 
   const filteredTopics = topics.filter(t => t.macro_area_id === areaId);
 
@@ -1810,15 +1811,30 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
   };
 
   const handleSave = () => {
-    if (!areaId || !topicId || !text || corrects.length === 0 || options.some(o => !o.trim())) return;
+    setSaveError('');
+    // Le opzioni vuote vengono ignorate (non serve compilarle tutte), rimappando
+    // gli indici delle risposte corrette su quelle effettivamente compilate.
+    const kept: number[] = [];
+    const filteredOptions: string[] = [];
+    options.forEach((o, i) => {
+      const t = o.trim();
+      if (t) { filteredOptions.push(t); kept.push(i); }
+    });
+    const remappedCorrects = corrects.map(ci => kept.indexOf(ci)).filter(ni => ni >= 0);
+
+    if (!areaId || !topicId) { setSaveError('Seleziona macro-area e argomento.'); return; }
+    if (!text.trim()) { setSaveError('Inserisci il testo della domanda.'); return; }
+    if (filteredOptions.length < 2) { setSaveError('Servono almeno 2 opzioni compilate.'); return; }
+    if (remappedCorrects.length === 0) { setSaveError('Seleziona almeno una risposta corretta (tra le opzioni compilate).'); return; }
+
     onSave({
       ...(initial.id ? { id: initial.id } : {}),
       course_id: courseId,
       macro_area_id: areaId,
       topic_id: topicId,
-      question_text: text,
-      options: options.map(o => o.trim()),
-      correct_answers: corrects,
+      question_text: text.trim(),
+      options: filteredOptions,
+      correct_answers: remappedCorrects,
       explanation: explanation || undefined,
       image_url: imageUrl || null,
       is_active: active,
@@ -1895,6 +1911,12 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
           <input type="checkbox" id="qshuffle" checked={shuffleOpts} onChange={e => setShuffleOpts(e.target.checked)} className="accent-[rgb(32,44,71)]" />
           <label htmlFor="qshuffle" className="text-sm text-gray-600 cursor-pointer">Mescola le opzioni di risposta</label>
         </div>
+
+        {saveError && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium flex items-start gap-2">
+            <Icon name="alert" className="w-4 h-4 mt-0.5 flex-shrink-0" /><span>{saveError}</span>
+          </div>
+        )}
 
         <button onClick={handleSave} className="btn-primary w-full">Salva domanda</button>
       </div>
