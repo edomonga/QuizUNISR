@@ -109,6 +109,33 @@ export async function deleteQuestion(id: string): Promise<{ error: string | null
   return { error: error?.message ?? null };
 }
 
+// ─── Question images (Supabase Storage) ───────────────────────────────────────
+// L'immagine vera vive nello Storage; sulla domanda salviamo solo l'URL, così la
+// tabella/cache delle domande resta leggera.
+const QUESTION_IMAGES_BUCKET = 'question-images';
+
+export async function uploadQuestionImage(blob: Blob, courseId: string): Promise<{ url: string | null; error: string | null }> {
+  const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
+  const path = `${courseId}/${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(QUESTION_IMAGES_BUCKET).upload(path, blob, {
+    cacheControl: '31536000',
+    contentType: blob.type || 'image/jpeg',
+    upsert: false,
+  });
+  if (error) return { url: null, error: error.message };
+  const { data } = supabase.storage.from(QUESTION_IMAGES_BUCKET).getPublicUrl(path);
+  return { url: data.publicUrl, error: null };
+}
+
+/** Elimina dallo Storage l'immagine dato il suo URL pubblico (best-effort). */
+export async function deleteQuestionImageByUrl(url: string): Promise<void> {
+  const marker = `/${QUESTION_IMAGES_BUCKET}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) return;
+  const path = url.slice(idx + marker.length);
+  await supabase.storage.from(QUESTION_IMAGES_BUCKET).remove([path]);
+}
+
 /** Azioni multiple sulle domande (selezione dell'admin). */
 export async function setQuestionsActive(ids: string[], isActive: boolean, courseId?: string): Promise<{ error: string | null }> {
   if (ids.length === 0) return { error: null };

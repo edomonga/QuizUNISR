@@ -373,6 +373,10 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
             )}
 
             <Card>
+              {q.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={q.image_url} alt="Immagine della domanda" className="mb-3 block mx-auto max-h-72 w-auto max-w-full rounded-xl border border-gray-200" />
+              )}
               <p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{q.question_text}</p>
             </Card>
 
@@ -747,7 +751,13 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400 tabular-nums">Domanda {preCur + 1} di {preQs.length}</span>
             </div>
-            <Card><p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{q.question_text}</p></Card>
+            <Card>
+              {q.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={q.image_url} alt="Immagine della domanda" className="mb-3 block mx-auto max-h-72 w-auto max-w-full rounded-xl border border-gray-200" />
+              )}
+              <p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{q.question_text}</p>
+            </Card>
             <div className="space-y-2">
               {q.shuffled_options.map((opt, idx) => (
                 <button key={idx}
@@ -840,7 +850,13 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400 tabular-nums">Domanda {mainCur + 1} di {mainQs.length}</span>
             </div>
-            <Card><p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{q.question_text}</p></Card>
+            <Card>
+              {q.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={q.image_url} alt="Immagine della domanda" className="mb-3 block mx-auto max-h-72 w-auto max-w-full rounded-xl border border-gray-200" />
+              )}
+              <p className="text-[rgb(32,44,71)] font-medium leading-relaxed">{q.question_text}</p>
+            </Card>
             <div className="space-y-2">
               {q.shuffled_options.map((opt, idx) => (
                 <button key={idx}

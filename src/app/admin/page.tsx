@@ -15,7 +15,9 @@ import {
   setQuestionsActive, deleteQuestions,
   getReports, updateReportStatus, QuestionReport,
   deleteReport, deleteResolvedReports, purgeOldResolvedReports,
+  uploadQuestionImage, deleteQuestionImageByUrl,
 } from '@/lib/db';
+import { compressImage } from '@/lib/imageUpload';
 import type { Profile, Course, MacroArea, Topic, Question, ExamRules } from '@/types';
 
 type Tab = 'users' | 'courses' | 'questions' | 'reports';
@@ -1775,11 +1777,36 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
   const [explanation, setExplanation] = useState(initial.explanation ?? '');
   const [active, setActive] = useState(initial.is_active !== false);
   const [shuffleOpts, setShuffleOpts] = useState(initial.shuffle_options !== false);
+  const [imageUrl, setImageUrl] = useState(initial.image_url ?? '');
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgError, setImgError] = useState('');
 
   const filteredTopics = topics.filter(t => t.macro_area_id === areaId);
 
   const toggleCorrect = (idx: number) => {
     setCorrects(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
+  };
+
+  const handleImage = async (file: File) => {
+    setImgError('');
+    if (!file.type.startsWith('image/')) { setImgError('Formato non valido: usa JPG, PNG o WebP.'); return; }
+    setImgBusy(true);
+    try {
+      const blob = await compressImage(file);
+      const { url, error } = await uploadQuestionImage(blob, courseId);
+      if (error || !url) setImgError('Caricamento non riuscito. Riprova.');
+      else setImageUrl(url);
+    } catch {
+      setImgError('Immagine non valida. Riprova.');
+    } finally {
+      setImgBusy(false);
+    }
+  };
+
+  const removeImage = () => {
+    const old = imageUrl;
+    setImageUrl('');
+    if (old) deleteQuestionImageByUrl(old).catch(() => {});
   };
 
   const handleSave = () => {
@@ -1793,6 +1820,7 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
       options: options.map(o => o.trim()),
       correct_answers: corrects,
       explanation: explanation || undefined,
+      image_url: imageUrl || null,
       is_active: active,
       shuffle_options: shuffleOpts,
     });
@@ -1813,6 +1841,29 @@ function QuestionModal({ initial, courseId, areas, topics, onClose, onSave }: {
         </div>
 
         <Textarea label="Testo domanda *" value={text} onChange={e => setText(e.target.value)} rows={3} placeholder="Inserisci il testo della domanda…" />
+
+        {/* Immagine della domanda (facoltativa) — caricata dallo Storage di Supabase */}
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-2">Immagine <span className="text-xs text-gray-400">(facoltativa)</span></p>
+          {imageUrl ? (
+            <div className="relative inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt="Immagine della domanda" className="max-h-52 rounded-xl border border-gray-200" />
+              <button type="button" onClick={removeImage} title="Rimuovi immagine"
+                className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow hover:bg-red-600">
+                <Icon name="x" className="w-3.5 h-3.5" strokeWidth={2.4} />
+              </button>
+            </div>
+          ) : (
+            <label className={`flex flex-col items-center justify-center gap-1.5 border-2 border-dashed rounded-xl p-5 cursor-pointer transition-colors ${imgBusy ? 'opacity-60 pointer-events-none' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}`}>
+              <Icon name="upload" className="w-5 h-5 text-gray-400" />
+              <span className="text-xs text-gray-500">{imgBusy ? 'Caricamento…' : 'Carica un\'immagine (JPG, PNG, WebP)'}</span>
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={imgBusy}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleImage(f); e.currentTarget.value = ''; }} />
+            </label>
+          )}
+          {imgError && <p className="mt-1.5 text-[11px] text-red-500">{imgError}</p>}
+        </div>
 
         <div>
           <p className="text-sm font-medium text-gray-700 mb-2">Opzioni di risposta * <span className="text-xs text-gray-400">(segna le corrette con la casella)</span></p>
