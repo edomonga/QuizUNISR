@@ -1574,7 +1574,7 @@ function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpTo
               .from('questions')
               .delete()
               .eq('course_id', selectedCourse);
-            if (error) { flash('err', 'Errore durante l\'eliminazione.'); }
+            if (error) { flash('err', `Errore durante l'eliminazione: ${error.message}`); }
             else { flash('ok', `✅ ${questions.length} domande eliminate.`); reload(); }
             setShowBulkDelete(false);
           }}
