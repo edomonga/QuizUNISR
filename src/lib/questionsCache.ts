@@ -101,31 +101,56 @@ async function fetchVersion(courseId: string): Promise<{ count: number; maxUpdat
   return { count: count ?? 0, maxUpdated: data?.[0]?.updated_at ?? '0' };
 }
 
-/** Scarica TUTTE le domande del corso (con i nomi di area/argomento). */
-async function fetchAll(courseId: string): Promise<Question[]> {
-  const { data, error } = await supabase
-    .from('questions')
-    .select('*, macro_areas ( name ), topics ( name )')
-    .eq('course_id', courseId)
-    .order('created_at', { ascending: true });
+// PostgREST limita ogni richiesta a un massimo di righe (default 1000): senza
+// paginazione, un corso con più di 1000 domande veniva troncato in silenzio
+// (il contatore "N domande" restava bloccato a 1000). Le funzioni sotto
+// scaricano a pagine con .range() finché non arriva una pagina incompleta.
+const FETCH_PAGE_SIZE = 1000;
 
-  if (error) {
-    console.error(error);
-    return [];
+/** Scarica TUTTE le domande del corso (con i nomi di area/argomento), paginando. */
+async function fetchAll(courseId: string): Promise<Question[]> {
+  const all: any[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*, macro_areas ( name ), topics ( name )')
+      .eq('course_id', courseId)
+      .order('created_at', { ascending: true })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
+
+    if (error) {
+      console.error(error);
+      return [];
+    }
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < FETCH_PAGE_SIZE) break;
+    from += FETCH_PAGE_SIZE;
   }
-  return (data ?? []).map(mapRow);
+  return all.map(mapRow);
 }
 
-/** Scarica SOLO le domande modificate/aggiunte dopo `sinceIso`. */
+/** Scarica SOLO le domande modificate/aggiunte dopo `sinceIso`, paginando. */
 async function fetchDelta(courseId: string, sinceIso: string): Promise<Question[]> {
-  const { data, error } = await supabase
-    .from('questions')
-    .select('*, macro_areas ( name ), topics ( name )')
-    .eq('course_id', courseId)
-    .gt('updated_at', sinceIso);
+  const all: any[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*, macro_areas ( name ), topics ( name )')
+      .eq('course_id', courseId)
+      .gt('updated_at', sinceIso)
+      .order('updated_at', { ascending: true })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
 
-  if (error) throw error;
-  return (data ?? []).map(mapRow);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < FETCH_PAGE_SIZE) break;
+    from += FETCH_PAGE_SIZE;
+  }
+  return all.map(mapRow);
 }
 
 /** Full fetch + scrittura cache (percorso "prima volta" o fallback). */

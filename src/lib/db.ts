@@ -151,11 +151,22 @@ export async function deleteQuestions(ids: string[], courseId?: string): Promise
   return { error: error?.message ?? null };
 }
 
+// Import a blocchi: oltre a restare sotto eventuali limiti di payload,
+// evita che il conteggio restituito da .select('id') dopo l'insert venga
+// troncato dal limite di righe per risposta di PostgREST (default 1000) su
+// import molto grandi.
+const INSERT_CHUNK_SIZE = 500;
+
 export async function bulkInsertQuestions(questions: Array<Omit<Question, 'id' | 'created_at' | 'updated_at'>>): Promise<{ count: number; error: string | null }> {
-  const { data, error } = await supabase.from('questions').insert(questions).select('id');
-  if (error) return { count: 0, error: error.message };
+  let inserted = 0;
+  for (let i = 0; i < questions.length; i += INSERT_CHUNK_SIZE) {
+    const chunk = questions.slice(i, i + INSERT_CHUNK_SIZE);
+    const { data, error } = await supabase.from('questions').insert(chunk).select('id');
+    if (error) return { count: inserted, error: error.message };
+    inserted += data?.length ?? 0;
+  }
   invalidateQuestionsCache((questions[0] as any)?.course_id);
-  return { count: data?.length ?? 0, error: null };
+  return { count: inserted, error: null };
 }
 
 // ─── Random question picker for exams ─────────────────────────────────────────
