@@ -86,6 +86,12 @@ export default function ExamPage() {
             <Icon name="alert" className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <span>Il timer parte subito. L'esame si chiude automaticamente allo scadere del tempo.</span>
           </div>
+          {course.exam_rules.start_message && (
+            <div className="p-3 bg-[color:var(--sig-soft)] border border-[color:var(--sig)]/25 rounded-xl text-sm text-[rgb(32,44,71)] flex items-start gap-2">
+              <Icon name="bulb" className="w-4 h-4 mt-0.5 flex-shrink-0 text-[color:var(--sig)]" />
+              <span className="whitespace-pre-line">{course.exam_rules.start_message}</span>
+            </div>
+          )}
         </Card>
         {course.exam_rules.exam_type === 'two_phase' && course.exam_rules.preselection && (
           <Card className="border-2 border-amber-200">

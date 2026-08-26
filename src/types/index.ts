@@ -42,6 +42,9 @@ export interface ExamRules {
   allow_multiple_correct: boolean;
   no_navigation?: boolean;
   distribution: Record<string, number>;
+  // Messaggio personalizzato mostrato agli studenti nella schermata di avvio
+  // dell'esame (facoltativo, in aggiunta alle regole standard).
+  start_message?: string;
   // Come scegliere le domande dell'esame principale:
   // - 'by_area' (default, comportamento storico): esattamente N domande per
   //   ciascuna macro-area, secondo `distribution`.

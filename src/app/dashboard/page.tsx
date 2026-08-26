@@ -77,13 +77,23 @@ export default function DashboardPage() {
             <p className="text-gray-400 mt-0.5 text-sm">
               {myYear != null ? 'Ecco su cosa concentrarti adesso' : 'Scegli la materia su cui vuoi esercitarti'}
             </p>
-            {hasAnyCourse && (
-              <button onClick={() => setPickYear(true)}
-                className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-[color:var(--sig-soft)] text-[color:var(--sig)] hover:brightness-95 transition">
-                <Icon name="user" className="w-3.5 h-3.5" />
-                {myYear != null ? `${myYear}º Anno · modifica` : 'Imposta il tuo anno'}
-              </button>
-            )}
+            <div className="mt-2.5 flex items-center gap-3 flex-wrap">
+              {hasAnyCourse && (
+                <button onClick={() => setPickYear(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-[color:var(--sig-soft)] text-[color:var(--sig)] hover:brightness-95 transition">
+                  <Icon name="user" className="w-3.5 h-3.5" />
+                  {myYear != null ? `${myYear}º Anno · modifica` : 'Imposta il tuo anno'}
+                </button>
+              )}
+              {/* Riprendi da dove eri: link discreto, non un banner a piena larghezza */}
+              {resumeCourse && (
+                <Link href={`/course/${resumeCourse.id}`}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-[color:var(--sig)] transition-colors">
+                  <Icon name="refresh" className="w-3.5 h-3.5" />
+                  Riprendi: <span className="font-semibold">{resumeCourse.name}</span>
+                </Link>
+              )}
+            </div>
           </div>
           {user.is_admin && (
             <Link href="/admin"
@@ -93,21 +103,6 @@ export default function DashboardPage() {
             </Link>
           )}
         </div>
-
-        {/* Riprendi da dove eri */}
-        {resumeCourse && (
-          <Link href={`/course/${resumeCourse.id}`}
-            className="group mb-6 flex items-center gap-3 rounded-2xl p-4 bg-[color:var(--sig-soft)] border border-[color:var(--sig)]/25 hover:shadow-sm transition">
-            <span className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-[color:var(--sig)] flex-shrink-0">
-              <Icon name="refresh" className="w-5 h-5" />
-            </span>
-            <div className="min-w-0">
-              <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--sig)]">Riprendi da dove eri</div>
-              <div className="font-bold text-[rgb(32,44,71)] truncate">{resumeCourse.name}</div>
-            </div>
-            <Icon name="chevron-right" className="w-5 h-5 ml-auto flex-shrink-0 text-[color:var(--sig)]" />
-          </Link>
-        )}
 
         {!hasAnyCourse ? (
           <Card className="text-center py-12 text-gray-400">
