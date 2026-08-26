@@ -42,6 +42,13 @@ export interface ExamRules {
   allow_multiple_correct: boolean;
   no_navigation?: boolean;
   distribution: Record<string, number>;
+  // Come scegliere le domande dell'esame principale:
+  // - 'by_area' (default, comportamento storico): esattamente N domande per
+  //   ciascuna macro-area, secondo `distribution`.
+  // - 'random_total': pesca `total_questions` domande a caso da TUTTA la
+  //   materia (tutte le macro-aree insieme), ignorando `distribution`.
+  // Assente = 'by_area', per compatibilità con le materie già esistenti.
+  distribution_mode?: 'by_area' | 'random_total';
   // Two-phase exam support (e.g. Microbiologia)
   exam_type?: 'standard' | 'two_phase';
   preselection?: {

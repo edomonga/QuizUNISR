@@ -173,8 +173,16 @@ export async function bulkInsertQuestions(questions: Array<Omit<Question, 'id' |
 
 export async function pickExamQuestions(course: Course): Promise<Question[]> {
   const all = await getCachedCourseQuestions(course.id);
-  const results: Question[] = [];
 
+  // Modalità "numero totale casuale": pesca N domande attive da tutta la
+  // materia, senza vincolarsi alla distribuzione per macro-area.
+  if (course.exam_rules.distribution_mode === 'random_total') {
+    const pool = all.filter((q) => q.is_active);
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, course.exam_rules.total_questions);
+  }
+
+  const results: Question[] = [];
   for (const [macroAreaId, count] of Object.entries(course.exam_rules.distribution)) {
     const pool = all.filter((q) => q.macro_area_id === macroAreaId && q.is_active);
     const shuffled = [...pool].sort(() => Math.random() - 0.5);

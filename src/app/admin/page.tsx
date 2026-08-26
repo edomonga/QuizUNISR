@@ -660,6 +660,10 @@ function CourseModal({ initial, allowedYears, onClose, onSave }: {
   const [courseAreas, setCourseAreas] = useState<MacroArea[]>([]);
   const [distribution, setDistribution] = useState<Record<string, number>>(initial.exam_rules?.distribution ?? {});
   const [preDistribution, setPreDistribution] = useState<Record<string, number>>(initial.exam_rules?.preselection?.distribution ?? {});
+  // Modalità di composizione dell'esame principale: per macro-area (storico)
+  // oppure un numero totale di domande pescate a caso da tutta la materia.
+  const [distMode, setDistMode] = useState<'by_area' | 'random_total'>(initial.exam_rules?.distribution_mode ?? 'by_area');
+  const [randomTotal, setRandomTotal] = useState<number>(initial.exam_rules?.total_questions ?? DEFAULT_RULES.total_questions);
   const [iconError, setIconError] = useState('');
 
   const handleIconUpload = (file: File) => {
@@ -751,8 +755,11 @@ function CourseModal({ initial, allowedYears, onClose, onSave }: {
     const preTotal = Object.values(preDistribution).reduce((s,n) => s+n, 0);
     const finalRules = {
       ...form.exam_rules,
-      distribution,
-      total_questions: distTotal > 0 ? distTotal : form.exam_rules.total_questions,
+      distribution_mode: distMode,
+      distribution: distMode === 'by_area' ? distribution : {},
+      total_questions: distMode === 'random_total'
+        ? Math.max(1, randomTotal)
+        : (distTotal > 0 ? distTotal : form.exam_rules.total_questions),
       ...(form.exam_rules.exam_type === 'two_phase' ? {
         preselection: {
           ...form.exam_rules.preselection!,
@@ -900,34 +907,72 @@ function CourseModal({ initial, allowedYears, onClose, onSave }: {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-semibold text-[rgb(32,44,71)] flex items-center gap-1.5">
-                  <Icon name="chart" className="w-4 h-4" />{rule.exam_type === 'two_phase' ? 'Domande per area — Esame vero' : "Domande per area nell'esame"}
+                  <Icon name="chart" className="w-4 h-4" />{rule.exam_type === 'two_phase' ? 'Domande — Esame vero' : 'Domande nell\'esame'}
                 </p>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${distTotal > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                  Totale: {distTotal}
-                </span>
+                {distMode === 'by_area' && (
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${distTotal > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                    Totale: {distTotal}
+                  </span>
+                )}
               </div>
-              <div className="space-y-2">
-                {courseAreas.map(area => (
-                  <div key={area.id} className="flex items-center gap-3 p-3 bg-[rgb(240,242,247)] rounded-xl">
-                    <span className="flex-1 text-sm font-medium text-gray-700 truncate">{area.name}</span>
+
+              {/* Selettore modalità */}
+              <div className="inline-flex rounded-xl border border-gray-200 overflow-hidden mb-3 bg-white">
+                <button type="button" onClick={() => setDistMode('by_area')}
+                  className={`text-xs font-medium px-3 py-1.5 transition-colors ${distMode === 'by_area' ? 'bg-[rgb(32,44,71)] text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  Per macro-area
+                </button>
+                <button type="button" onClick={() => setDistMode('random_total')}
+                  className={`text-xs font-medium px-3 py-1.5 transition-colors ${distMode === 'random_total' ? 'bg-[rgb(32,44,71)] text-white' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  Numero totale casuale
+                </button>
+              </div>
+
+              {distMode === 'by_area' ? (
+                <>
+                  <div className="space-y-2">
+                    {courseAreas.map(area => (
+                      <div key={area.id} className="flex items-center gap-3 p-3 bg-[rgb(240,242,247)] rounded-xl">
+                        <span className="flex-1 text-sm font-medium text-gray-700 truncate">{area.name}</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button type="button"
+                            onClick={() => setDistribution(d => ({ ...d, [area.id]: Math.max(0, (d[area.id] ?? 0) - 1) }))}
+                            className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">−</button>
+                          <input type="number" min={0} value={distribution[area.id] ?? 0}
+                            onChange={e => setDistribution(d => ({ ...d, [area.id]: Math.max(0, +e.target.value) }))}
+                            className="w-14 text-center border border-gray-300 rounded-lg px-1 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"/>
+                          <button type="button"
+                            onClick={() => setDistribution(d => ({ ...d, [area.id]: (d[area.id] ?? 0) + 1 }))}
+                            className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">+</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {distTotal > 0 && (
+                    <p className="text-xs text-gray-400 mt-2 flex items-start gap-1.5">
+                      <Icon name="bulb" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /><span>Il totale domande dell&apos;esame verrà impostato automaticamente a <strong>{distTotal}</strong>.</span>
+                    </p>
+                  )}
+                </>
+              ) : (
+                <div className="p-3 bg-[rgb(240,242,247)] rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 text-sm font-medium text-gray-700">Numero di domande</span>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button type="button"
-                        onClick={() => setDistribution(d => ({ ...d, [area.id]: Math.max(0, (d[area.id] ?? 0) - 1) }))}
+                      <button type="button" onClick={() => setRandomTotal(n => Math.max(1, n - 1))}
                         className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">−</button>
-                      <input type="number" min={0} value={distribution[area.id] ?? 0}
-                        onChange={e => setDistribution(d => ({ ...d, [area.id]: Math.max(0, +e.target.value) }))}
-                        className="w-14 text-center border border-gray-300 rounded-lg px-1 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"/>
-                      <button type="button"
-                        onClick={() => setDistribution(d => ({ ...d, [area.id]: (d[area.id] ?? 0) + 1 }))}
+                      <input type="number" min={1} value={randomTotal}
+                        onChange={e => setRandomTotal(Math.max(1, +e.target.value))}
+                        className="w-16 text-center border border-gray-300 rounded-lg px-1 py-1 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[rgb(32,44,71)]"/>
+                      <button type="button" onClick={() => setRandomTotal(n => n + 1)}
                         className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 font-bold text-base leading-none">+</button>
                     </div>
                   </div>
-                ))}
-              </div>
-              {distTotal > 0 && (
-                <p className="text-xs text-gray-400 mt-2 flex items-start gap-1.5">
-                  <Icon name="bulb" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /><span>Il totale domande dell&apos;esame verrà impostato automaticamente a <strong>{distTotal}</strong>.</span>
-                </p>
+                  <p className="text-xs text-gray-400 mt-2 flex items-start gap-1.5">
+                    <Icon name="bulb" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                    <span>Ad ogni esame verranno estratte <strong>{randomTotal}</strong> domande a caso da tutta la materia (tutte le macro-aree insieme), tra quelle attive.</span>
+                  </p>
+                </div>
               )}
             </div>
 
