@@ -17,6 +17,7 @@ import {
   deleteReport, deleteResolvedReports, purgeOldResolvedReports,
   uploadQuestionImage, deleteQuestionImageByUrl,
 } from '@/lib/db';
+import { invalidateQuestionsCache } from '@/lib/questionsCache';
 import { compressImage } from '@/lib/imageUpload';
 import type { Profile, Course, MacroArea, Topic, Question, ExamRules } from '@/types';
 
@@ -1583,6 +1584,10 @@ function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpTo
               const chunk = ids.slice(i, i + CHUNK);
               const { error } = await supabase.from('questions').delete().in('id', chunk);
               if (error) {
+                // Invalida SEMPRE la cache: anche in caso di errore a metà,
+                // i blocchi già eliminati sono reali sul server e il pannello
+                // non deve continuare a mostrare la lista vecchia da cache.
+                invalidateQuestionsCache(selectedCourse);
                 flash('err', `Errore durante l'eliminazione (${done}/${ids.length} eliminate prima dell'errore): ${error.message}`);
                 setShowBulkDelete(false);
                 reload();
@@ -1591,6 +1596,10 @@ function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpTo
               done += chunk.length;
               onProgress(done, ids.length);
             }
+            // Senza questa invalidazione la cache locale delle domande resta
+            // "fresca" per fino a 5 minuti: reload() mostrerebbe ancora la
+            // vecchia lista pur avendo eliminato tutto con successo sul server.
+            invalidateQuestionsCache(selectedCourse);
             flash('ok', `✅ ${done} domande eliminate.`);
             setShowBulkDelete(false);
             reload();
