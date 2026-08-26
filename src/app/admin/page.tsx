@@ -454,6 +454,9 @@ function CoursesTab({ allowedYears }: { allowedYears: number[] | null }) {
   const [showAreaModal, setShowAreaModal] = useState<{ courseId: string } | null>(null);
   const [showTopicModal, setShowTopicModal] = useState<{ courseId: string; areaId: string } | null>(null);
   const [confirmDelCourse, setConfirmDelCourse] = useState<string | null>(null);
+  // Filtro per anno: solo per il super admin (l'admin limitato vede già solo
+  // i propri anni, non serve un filtro aggiuntivo).
+  const [yearFilter, setYearFilter] = useState<'all' | 'none' | number>('all');
 
   // Admin limitato: mostra solo le materie degli anni assegnati.
   const inScope = useCallback(
@@ -478,18 +481,31 @@ function CoursesTab({ allowedYears }: { allowedYears: number[] | null }) {
 
   const flash = (type: 'ok' | 'err', text: string) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3500); };
 
+  const visibleCourses = allowedYears !== null || yearFilter === 'all'
+    ? courses
+    : courses.filter(c => yearFilter === 'none' ? c.year == null : c.year === yearFilter);
+
   if (loading) return <Spinner className="mt-10" />;
 
   return (
     <div className="space-y-4">
       {msg && <Alert type={msg.type} message={msg.text} />}
 
-      <div className="flex justify-end">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
+        {allowedYears === null ? (
+          <div className="w-44">
+            <Select label="Filtra per anno" value={String(yearFilter)} onChange={e => setYearFilter(e.target.value === 'all' ? 'all' : e.target.value === 'none' ? 'none' : Number(e.target.value))}>
+              <option value="all">Tutti gli anni</option>
+              {[1, 2, 3, 4, 5, 6].map(y => <option key={y} value={y}>{y}º Anno</option>)}
+              <option value="none">Senza anno</option>
+            </Select>
+          </div>
+        ) : <span />}
         <button onClick={() => { setEditingCourse({}); setShowCourseModal(true); }}
           className="btn-primary text-sm py-2 px-4">+ Nuova materia</button>
       </div>
 
-      {courses.map(course => (
+      {visibleCourses.map(course => (
         <Card key={course.id}>
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-3">
@@ -647,9 +663,10 @@ function CourseModal({ initial, allowedYears, onClose, onSave }: {
     name: initial.name ?? '',
     subtitle: initial.subtitle ?? '',
     icon: initial.icon ?? 'pulse',
-    accent_color: initial.accent_color ?? 'bg-blue-600',
-    text_color: initial.text_color ?? 'text-blue-700',
-    border_color: initial.border_color ?? 'border-blue-200',
+    // Il colore tema non è più configurabile (non serve con l'attuale
+    // separazione delle materie per icona/anno): i campi accent_color/
+    // text_color/border_color non vengono più inviati. Le colonne restano nel
+    // database con il loro valore attuale/di default, semplicemente inutilizzate.
     is_available: initial.is_available ?? true,
     exam_rules: initial.exam_rules ?? DEFAULT_RULES,
     // Anno di corso. Per un admin limitato che crea una nuova materia,
@@ -771,15 +788,6 @@ function CourseModal({ initial, allowedYears, onClose, onSave }: {
     onSave({ ...form, exam_rules: finalRules });
   };
 
-  const ACCENT_OPTIONS = [
-    { label: 'Blu', accent: 'bg-blue-600', text: 'text-blue-700', border: 'border-blue-200', preview: 'bg-blue-600' },
-    { label: 'Verde', accent: 'bg-emerald-600', text: 'text-emerald-700', border: 'border-emerald-200', preview: 'bg-emerald-600' },
-    { label: 'Viola', accent: 'bg-purple-600', text: 'text-purple-700', border: 'border-purple-200', preview: 'bg-purple-600' },
-    { label: 'Rosso', accent: 'bg-rose-600', text: 'text-rose-700', border: 'border-rose-200', preview: 'bg-rose-600' },
-    { label: 'Arancio', accent: 'bg-orange-500', text: 'text-orange-700', border: 'border-orange-200', preview: 'bg-orange-500' },
-    { label: 'Azzurro', accent: 'bg-cyan-600', text: 'text-cyan-700', border: 'border-cyan-200', preview: 'bg-cyan-600' },
-  ];
-
   return (
     <Modal title={initial.id ? 'Modifica materia' : 'Nuova materia'} onClose={onClose}>
       <div className="space-y-5">
@@ -837,21 +845,6 @@ function CourseModal({ initial, allowedYears, onClose, onSave }: {
           </div>
         </div>
 
-        {/* Color picker */}
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">Colore tema</p>
-          <div className="flex flex-wrap gap-2">
-            {ACCENT_OPTIONS.map(opt => (
-              <button key={opt.accent} type="button"
-                onClick={() => setForm(f => ({ ...f, accent_color: opt.accent, text_color: opt.text, border_color: opt.border }))}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border-2 text-xs font-medium transition-all ${form.accent_color === opt.accent ? 'border-[rgb(32,44,71)] bg-[rgb(240,242,247)]' : 'border-gray-200 hover:border-gray-300'}`}>
-                <span className={`w-3 h-3 rounded-full ${opt.preview}`} />
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Exam rules */}
         <div className="border-t border-gray-100 pt-4">
           <p className="text-sm font-semibold text-[rgb(32,44,71)] mb-3 flex items-center gap-2"><Icon name="clock" className="w-4 h-4" />Regole esame</p>
@@ -877,6 +870,10 @@ function CourseModal({ initial, allowedYears, onClose, onSave }: {
             <input type="checkbox" id="twophase" checked={rule.exam_type === 'two_phase'} onChange={e => setRule({ exam_type: e.target.checked ? 'two_phase' : 'standard' })} className="accent-[rgb(32,44,71)]" />
             <label htmlFor="twophase" className="text-sm text-gray-600 cursor-pointer">Esame bifasico (preselezione + esame)</label>
           </div>
+
+          <Textarea label="Messaggio di inizio esame (facoltativo)" value={rule.start_message ?? ''}
+            onChange={e => setRule({ start_message: e.target.value || undefined })} rows={2}
+            placeholder="Es. Ricorda di leggere bene ogni domanda prima di rispondere…" />
 
           {rule.exam_type === 'two_phase' && (
             <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
@@ -1063,6 +1060,9 @@ function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpTo
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 25;
+  // Filtro per anno nel selettore materia: solo per il super admin (l'admin
+  // limitato vede già solo i propri anni).
+  const [courseYearFilter, setCourseYearFilter] = useState<'all' | 'none' | number>('all');
 
   // Admin limitato: solo le materie degli anni assegnati.
   useEffect(() => {
@@ -1070,6 +1070,10 @@ function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpTo
       setCourses(allowedYears === null ? all : all.filter(c => c.year != null && allowedYears.includes(c.year)))
     );
   }, [allowedYears]);
+
+  const visibleCourses = allowedYears !== null || courseYearFilter === 'all'
+    ? courses
+    : courses.filter(c => courseYearFilter === 'none' ? c.year == null : c.year === courseYearFilter);
 
   useEffect(() => {
     if (jumpToText) {
@@ -1386,15 +1390,29 @@ function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpTo
       {msg && <Alert type={msg.type} message={msg.text} />}
 
       <div>
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Seleziona materia</p>
+        <div className="flex items-end justify-between gap-3 mb-2 flex-wrap">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Seleziona materia</p>
+          {allowedYears === null && (
+            <div className="w-40">
+              <Select label="Filtra per anno" value={String(courseYearFilter)} onChange={e => setCourseYearFilter(e.target.value === 'all' ? 'all' : e.target.value === 'none' ? 'none' : Number(e.target.value))}>
+                <option value="all">Tutti gli anni</option>
+                {[1, 2, 3, 4, 5, 6].map(y => <option key={y} value={y}>{y}º Anno</option>)}
+                <option value="none">Senza anno</option>
+              </Select>
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
-          {courses.map(c => (
+          {visibleCourses.map(c => (
             <button key={c.id} onClick={() => setSelectedCourse(c.id)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 font-medium text-sm transition-all ${selectedCourse === c.id ? 'border-[rgb(32,44,71)] bg-[rgb(32,44,71)] text-white shadow-sm' : 'border-gray-200 bg-white text-gray-700 hover:border-[rgb(32,44,71)] hover:text-[rgb(32,44,71)]'}`}>
               <CourseIcon icon={c.icon} className="w-4 h-4" />
               <span>{c.name}</span>
             </button>
           ))}
+          {visibleCourses.length === 0 && (
+            <p className="text-sm text-gray-400 py-2">Nessuna materia per questo filtro.</p>
+          )}
         </div>
       </div>
 
