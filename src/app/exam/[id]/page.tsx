@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCourse, pickExamQuestions, recordQuizAnswers, saveExamResult } from '@/lib/db';
+import { saveExamProgress, loadExamProgress, clearExamProgress, type StoredExamProgress } from '@/lib/examProgress';
 import { PageShell, Card, Spinner, Modal } from '@/components/ui';
 import { Icon } from '@/components/Icon';
 import type { Course, Question, ExamAnswer } from '@/types';
@@ -138,19 +139,76 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
   const startRef = useRef(Date.now());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Salvataggio locale (solo questo dispositivo): al mount controlla se
+  // esiste un tentativo interrotto (ricarica, crash, tab chiusa) ancora nei
+  // tempi, e in tal caso propone di riprendere invece di pescare domande
+  // nuove. 'checking'/'offer_resume' bloccano il render della schermata
+  // esame finché non si sa cosa fare.
+  const [boot, setBoot] = useState<'checking' | 'offer_resume' | 'loading' | 'ready'>('checking');
+  const [offer, setOffer] = useState<StoredExamProgress<ShuffledQuestion> | null>(null);
+
   useEffect(() => {
+    const saved = loadExamProgress<ShuffledQuestion>(userId, course.id);
+    if (saved && saved.questions.length > 0) {
+      const elapsed = Math.floor((Date.now() - saved.startedAt) / 1000);
+      if (elapsed < saved.timeLimitSeconds) {
+        setOffer(saved);
+        setBoot('offer_resume');
+        return;
+      }
+      clearExamProgress(userId, course.id); // tempo già scaduto: scarta, non è recuperabile
+    }
+    setBoot('loading');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course.id, userId]);
+
+  useEffect(() => {
+    if (boot !== 'loading') return;
     pickExamQuestions(course).then(rawQs => {
       const shuffled = rawQs.map(shuffleQuestion);
+      startRef.current = Date.now();
       setQs(shuffled);
       setAnswers(shuffled.map(() => []));
+      setBoot('ready');
       setLoading(false);
     });
-  }, [course]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boot]);
+
+  const handleResume = () => {
+    if (!offer) return;
+    const elapsed = Math.floor((Date.now() - offer.startedAt) / 1000);
+    startRef.current = offer.startedAt;
+    setQs(offer.questions);
+    setAnswers(offer.answers);
+    setCur(Math.min(offer.cur, Math.max(0, offer.questions.length - 1)));
+    setTimeLeft(Math.max(0, offer.timeLimitSeconds - elapsed));
+    setBoot('ready');
+    setLoading(false);
+  };
+
+  const handleRestart = () => {
+    clearExamProgress(userId, course.id);
+    setOffer(null);
+    setBoot('loading');
+  };
+
+  // Salva risposte + posizione ad ogni cambiamento, finché l'esame è in corso.
+  useEffect(() => {
+    if (boot !== 'ready' || submitted || qs.length === 0) return;
+    saveExamProgress<ShuffledQuestion>({
+      courseId: course.id, userId, startedAt: startRef.current,
+      timeLimitSeconds: rule.time_limit_seconds, questions: qs, answers, cur,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answers, cur, boot, submitted]);
 
   const submit = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
+    clearExamProgress(userId, course.id); // esame concluso: niente più da riprendere
     setSubmitted(true);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, course.id]);
 
   useEffect(() => {
     if (loading) return;
@@ -196,6 +254,35 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
       duration_seconds: dur, answers: examAnswers,
     });
   }, [submitted]); // eslint-disable-line
+
+  if (boot === 'checking') return <PageShell><Spinner className="mt-20" /></PageShell>;
+
+  if (boot === 'offer_resume' && offer) {
+    const elapsed = Math.floor((Date.now() - offer.startedAt) / 1000);
+    const remaining = Math.max(0, offer.timeLimitSeconds - elapsed);
+    const answeredInOffer = offer.answers.filter(a => a.length > 0).length;
+    return (
+      <PageShell courseName={course.name}>
+        <div className="max-w-md mx-auto px-4">
+          <Card className="text-center space-y-4 mt-10">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[color:var(--sig-soft)] text-[color:var(--sig)]">
+              <Icon name="refresh" className="h-7 w-7" />
+            </div>
+            <h2 className="text-lg font-bold text-[rgb(32,44,71)]">Hai un esame in corso</h2>
+            <p className="text-sm text-gray-500">
+              {answeredInOffer} risposte già date su {offer.questions.length}. Tempo rimasto: <strong>{fmt(remaining)}</strong>.
+            </p>
+            <div className="flex flex-col gap-2 pt-1">
+              <button onClick={handleResume} className="btn-primary w-full py-3">Riprendi da dove eri</button>
+              <button onClick={handleRestart} className="w-full py-2.5 text-sm text-red-500 font-medium hover:underline">
+                Ricomincia da capo (perderai le risposte già date)
+              </button>
+            </div>
+          </Card>
+        </div>
+      </PageShell>
+    );
+  }
 
   if (loading) return <PageShell><Spinner className="mt-20" /></PageShell>;
 
