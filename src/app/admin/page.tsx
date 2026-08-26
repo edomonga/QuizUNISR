@@ -1568,15 +1568,32 @@ function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpTo
           courseName={courses.find(c => c.id === selectedCourse)?.name ?? ''}
           count={questions.length}
           onClose={() => setShowBulkDelete(false)}
-          onConfirm={async () => {
+          onConfirm={async (onProgress) => {
+            // A blocchi (non un'unica DELETE su tutto il corso): con 800+
+            // utenti le tabelle collegate (statistiche, "vista", segnalazioni)
+            // possono avere centinaia di migliaia di righe da cancellare in
+            // cascata — un'unica istruzione su 1000+ domande rischia il
+            // timeout del database. A blocchi restiamo sempre sotto il limite
+            // e, se qualcosa va storto a metà, il lavoro già fatto non si perde.
             const { supabase } = await import('@/lib/supabase');
-            const { error } = await supabase
-              .from('questions')
-              .delete()
-              .eq('course_id', selectedCourse);
-            if (error) { flash('err', `Errore durante l'eliminazione: ${error.message}`); }
-            else { flash('ok', `✅ ${questions.length} domande eliminate.`); reload(); }
+            const ids = questions.map(q => q.id);
+            const CHUNK = 150;
+            let done = 0;
+            for (let i = 0; i < ids.length; i += CHUNK) {
+              const chunk = ids.slice(i, i + CHUNK);
+              const { error } = await supabase.from('questions').delete().in('id', chunk);
+              if (error) {
+                flash('err', `Errore durante l'eliminazione (${done}/${ids.length} eliminate prima dell'errore): ${error.message}`);
+                setShowBulkDelete(false);
+                reload();
+                return;
+              }
+              done += chunk.length;
+              onProgress(done, ids.length);
+            }
+            flash('ok', `✅ ${done} domande eliminate.`);
             setShowBulkDelete(false);
+            reload();
           }}
         />
       )}
@@ -1604,17 +1621,19 @@ function BulkDeleteModal({ courseName, count, onClose, onConfirm }: {
   courseName: string;
   count: number;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: (onProgress: (done: number, total: number) => void) => Promise<void>;
 }) {
   const CONFIRM_PHRASE = 'elimina tutte le domande';
   const [text, setText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [progress, setProgress] = useState(0);
   const isValid = text.trim().toLowerCase() === CONFIRM_PHRASE;
 
   const handleConfirm = async () => {
     if (!isValid) return;
     setDeleting(true);
-    await onConfirm();
+    setProgress(0);
+    await onConfirm((done) => setProgress(done));
     setDeleting(false);
   };
 
@@ -1658,9 +1677,18 @@ function BulkDeleteModal({ courseName, count, onClose, onConfirm }: {
           )}
         </div>
 
+        {deleting && (
+          <div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-red-500 transition-all" style={{ width: `${count > 0 ? Math.round((progress / count) * 100) : 0}%` }} />
+            </div>
+            <p className="text-xs text-gray-500 mt-1.5 text-center">{progress} / {count} eliminate…</p>
+          </div>
+        )}
+
         <div className="flex gap-3">
-          <button onClick={onClose}
-            className="flex-1 py-2.5 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors">
+          <button onClick={onClose} disabled={deleting}
+            className="flex-1 py-2.5 text-sm border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50">
             Annulla
           </button>
           <button
