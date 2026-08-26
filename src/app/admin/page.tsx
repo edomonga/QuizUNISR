@@ -468,11 +468,20 @@ function CoursesTab({ allowedYears }: { allowedYears: number[] | null }) {
     const all = await getCourses();
     const cs = all.filter(inScope);
     setCourses(cs);
+    // Aree e argomenti di TUTTE le materie in parallelo (non una materia alla
+    // volta in sequenza): con molte materie il caricamento era la somma di
+    // decine di richieste in fila invece del tempo della più lenta.
+    const perCourse = await Promise.all(
+      cs.map(async (c) => {
+        const [courseAreas, courseTopics] = await Promise.all([getMacroAreas(c.id), getTopics(c.id)]);
+        return { id: c.id, courseAreas, courseTopics };
+      })
+    );
     const aMap: Record<string, MacroArea[]> = {};
     const tMap: Record<string, Topic[]> = {};
-    for (const c of cs) {
-      aMap[c.id] = await getMacroAreas(c.id);
-      tMap[c.id] = await getTopics(c.id);
+    for (const { id, courseAreas, courseTopics } of perCourse) {
+      aMap[id] = courseAreas;
+      tMap[id] = courseTopics;
     }
     setAreas(aMap); setTopics(tMap);
     setLoading(false);
