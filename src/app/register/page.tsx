@@ -143,7 +143,13 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          <p className="mt-5 text-center text-sm text-gray-500">
+          <p className="mt-4 text-center text-xs text-gray-400">
+            Registrandoti dichiari di aver letto e accettato i{' '}
+            <Link href="/termini" className="text-[color:var(--sig)] hover:underline">Termini di Servizio</Link>{' '}
+            e l&apos;<Link href="/privacy" className="text-[color:var(--sig)] hover:underline">Informativa sulla Privacy</Link>.
+          </p>
+
+          <p className="mt-4 text-center text-sm text-gray-500">
             Hai già un account?{' '}
             <Link href="/login" className="font-semibold text-[color:var(--sig)] hover:underline">Accedi</Link>
           </p>

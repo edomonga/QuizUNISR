@@ -18,6 +18,7 @@ import {
   uploadQuestionImage, deleteQuestionImageByUrl,
 } from '@/lib/db';
 import { invalidateQuestionsCache } from '@/lib/questionsCache';
+import { parseCorrect } from '@/lib/importParsing';
 import { compressImage } from '@/lib/imageUpload';
 import type { Profile, Course, MacroArea, Topic, Question, ExamRules } from '@/types';
 
@@ -1037,16 +1038,6 @@ function CourseModal({ initial, allowedYears, onClose, onSave }: {
 }
 
 // ─── QUESTIONS TAB ────────────────────────────────────────────────────────────
-
-function parseCorrect(val: unknown, optCount: number): number[] {
-  if (val === null || val === undefined || String(val).trim() === '') return [];
-  const str = String(val).trim().toUpperCase();
-  return str.split(/[,;]/).map(s => s.trim()).reduce<number[]>((acc, token) => {
-    if (/^[A-Z]$/.test(token)) { const idx = token.charCodeAt(0) - 65; if (idx < optCount) acc.push(idx); }
-    else if (/^\d+$/.test(token)) { const idx = parseInt(token, 10) - 1; if (idx >= 0 && idx < optCount) acc.push(idx); }
-    return acc;
-  }, []);
-}
 
 function QuestionsTab({ jumpToText = '', onJumpHandled, allowedYears }: { jumpToText?: string; onJumpHandled?: () => void; allowedYears: number[] | null }) {
   const [courses, setCourses] = useState<Course[]>([]);

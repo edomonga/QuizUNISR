@@ -8,6 +8,8 @@
 // Supabase. Sostituisci TUOPROGETTO con il subdominio reale
 // (es. abcdefghij.supabase.co).
 
+import { withSentryConfig } from '@sentry/nextjs';
+
 const SUPABASE_HOST = 'https://mxecukuguyulubminxks.supabase.co';
 
 const securityHeaders = [
@@ -32,7 +34,10 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      `connect-src 'self' ${SUPABASE_HOST} wss://${SUPABASE_HOST.replace('https://', '')}`,
+      // *.sentry.io: invio errori dal browser al monitoraggio Sentry (se
+      // configurato). Senza questa riga, la CSP bloccherebbe silenziosamente
+      // ogni report anche con Sentry attivo e il DSN impostato.
+      `connect-src 'self' ${SUPABASE_HOST} wss://${SUPABASE_HOST.replace('https://', '')} https://*.sentry.io`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -58,4 +63,16 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Avvolge la config con Sentry: abilita il caricamento automatico dei
+// source map quando (e solo quando) sono impostate le variabili d'ambiente
+// SENTRY_ORG/SENTRY_PROJECT/SENTRY_AUTH_TOKEN. Senza di esse la build
+// funziona lo stesso, semplicemente niente upload dei source map (righe di
+// stack meno leggibili in Sentry finché non le aggiungi).
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  webpack: { treeshake: { removeDebugLogging: true } },
+});

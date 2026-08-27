@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCourse, pickExamQuestions, recordQuizAnswers, saveExamResult } from '@/lib/db';
 import { saveExamProgress, loadExamProgress, clearExamProgress, type StoredExamProgress } from '@/lib/examProgress';
+import { computeExamScore, isAnswerCorrect } from '@/lib/examScoring';
 import { PageShell, Card, Spinner, Modal } from '@/components/ui';
 import { Icon } from '@/components/Icon';
 import type { Course, Question, ExamAnswer } from '@/types';
@@ -219,21 +220,13 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [loading, submit]);
 
-  const isQuestionCorrect = (q: ShuffledQuestion, sel: number[]) => {
-    if (sel.length === 0) return false;
-    return sel.length === q.shuffled_correct.length &&
-      sel.every(i => q.shuffled_correct.includes(i));
-  };
+  const isQuestionCorrect = (q: ShuffledQuestion, sel: number[]) => isAnswerCorrect(sel, q.shuffled_correct);
 
   useEffect(() => {
     if (!submitted || !qs.length) return;
-    let correct = 0, wrong = 0, omitted = 0;
-    answers.forEach((a, i) => {
-      if (a.length === 0) { omitted++; return; }
-      if (isQuestionCorrect(qs[i], a)) correct++; else wrong++;
-    });
-    const raw = correct * rule.correct_score - wrong * rule.wrong_penalty;
-    const scoreIn30 = Math.max(0, Math.round((raw / rule.total_questions) * 30 * 10) / 10);
+    const { correct, wrong, omitted, raw, scoreIn30 } = computeExamScore(
+      answers, qs.map(q => q.shuffled_correct), rule
+    );
     setResults({ correct, wrong, omitted, raw, scoreIn30 });
     const dur = Math.round((Date.now() - startRef.current) / 1000);
 
@@ -644,20 +637,14 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
   // Evaluate main exam
   useEffect(() => {
     if (!mainSubmitted || !mainQs.length) return;
-    let correct = 0, wrong = 0, omitted = 0;
-    mainAnswers.forEach((a, i) => {
-      if (a.length === 0) { omitted++; return; }
-      const exp = mainQs[i]?.shuffled_correct ?? [];
-      const isCorrect = a.length === exp.length && a.every(x => exp.includes(x));
-      if (isCorrect) correct++; else wrong++;
-    });
-    const raw = correct * rule.correct_score - wrong * rule.wrong_penalty;
-    const scoreIn30 = Math.max(0, Math.round((raw / rule.total_questions) * 30 * 10) / 10);
+    const { correct, wrong, omitted, raw, scoreIn30 } = computeExamScore(
+      mainAnswers, mainQs.map(q => q.shuffled_correct), rule
+    );
     setMainResults({ correct, wrong, omitted, raw, scoreIn30 });
     const dur = Math.round((Date.now() - startRef.current) / 1000);
     recordQuizAnswers(userId, course.id, mainQs.map((q, i) => ({
       question: q,
-      correct: mainAnswers[i].length === q.shuffled_correct.length && mainAnswers[i].every(x => q.shuffled_correct.includes(x)),
+      correct: isAnswerCorrect(mainAnswers[i], q.shuffled_correct),
     })));
     saveExamResult({ user_id: userId, course_id: course.id, course_name: course.name, score_in_30: scoreIn30, raw_score: raw, correct, wrong, omitted, duration_seconds: dur, answers: [] });
   }, [mainSubmitted]); // eslint-disable-line
