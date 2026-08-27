@@ -62,28 +62,21 @@ export default function TerminiPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">5. Abbonamento e pagamenti</h2>
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-                <strong>[DA COMPLETARE]</strong> — Al momento l&apos;accesso a UniQuiz non richiede alcun pagamento. Se in futuro verrà introdotto un abbonamento a pagamento, questa sezione verrà aggiornata con: prezzo, durata, modalità di rinnovo, diritto di recesso e politica di rimborso, prima che qualunque pagamento venga richiesto agli utenti.
-              </div>
-            </section>
-
-            <section>
-              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">6. Modifiche al servizio</h2>
+              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">5. Modifiche al servizio</h2>
               <p>
                 Possiamo aggiungere, modificare o rimuovere funzionalità del servizio nel tempo, così come sospendere temporaneamente l&apos;accesso per manutenzione. Ci impegniamo a limitare al minimo i disagi per gli utenti.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">7. Limitazione di responsabilità</h2>
+              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">6. Limitazione di responsabilità</h2>
               <p>
                 Nei limiti consentiti dalla legge, UniQuiz viene fornito &ldquo;così com&apos;è&rdquo;. Non garantiamo che il servizio sarà sempre privo di interruzioni o errori. La nostra responsabilità, ove applicabile, è limitata a quanto previsto dalla normativa vigente.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">8. Trattamento dei dati personali</h2>
+              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">7. Trattamento dei dati personali</h2>
               <p>
                 Il trattamento dei tuoi dati personali è disciplinato dalla nostra{' '}
                 <Link href="/privacy" className="text-[color:var(--sig)] font-medium hover:underline">Informativa sulla Privacy</Link>.
@@ -91,14 +84,14 @@ export default function TerminiPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">9. Modifiche ai presenti Termini</h2>
+              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">8. Modifiche ai presenti Termini</h2>
               <p>
                 Possiamo aggiornare questi Termini di Servizio nel tempo. La data di ultimo aggiornamento è indicata in cima alla pagina. L&apos;uso continuato del servizio dopo una modifica sostanziale costituisce accettazione dei nuovi termini.
               </p>
             </section>
 
             <section>
-              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">10. Legge applicabile e contatti</h2>
+              <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">9. Legge applicabile e contatti</h2>
               <p>
                 I presenti Termini sono regolati dalla legge italiana. Per qualsiasi domanda su questi Termini, scrivi a{' '}
                 <a href="mailto:info@uniquiz.pro" className="text-[color:var(--sig)] font-medium hover:underline">info@uniquiz.pro</a>.

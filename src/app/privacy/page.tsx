@@ -23,14 +23,15 @@ export default function PrivacyPage() {
           <div className="prose-legal space-y-7 text-[15px] leading-relaxed text-gray-700">
 
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-              <strong>Nota:</strong> questa informativa descrive fedelmente i dati che UniQuiz raccoglie e come vengono trattati. Le parti contrassegnate con <span className="font-mono text-xs bg-amber-100 px-1 rounded">[DA COMPLETARE]</span> richiedono i dati anagrafici/fiscali del titolare del trattamento prima della pubblicazione definitiva.
+              <strong>Nota:</strong> questa informativa descrive fedelmente i dati che UniQuiz raccoglie e come vengono trattati. La parte contrassegnata con <span className="font-mono text-xs bg-amber-100 px-1 rounded">[DA COMPLETARE]</span> richiede la sede legale e l&apos;eventuale P.IVA del titolare prima della pubblicazione definitiva.
             </div>
 
             <section>
               <h2 className="text-lg font-bold text-[rgb(32,44,71)] mb-2">1. Titolare del trattamento</h2>
               <p>
                 Il titolare del trattamento dei dati raccolti tramite UniQuiz è{' '}
-                <span className="font-mono text-sm bg-gray-100 px-1.5 py-0.5 rounded">[DA COMPLETARE: nome/ragione sociale, indirizzo, eventuale P.IVA]</span>.
+                <strong>UniQuiz S.p.A.</strong>,{' '}
+                <span className="font-mono text-sm bg-gray-100 px-1.5 py-0.5 rounded">[DA COMPLETARE: sede legale, eventuale P.IVA]</span>.
                 Per qualsiasi richiesta relativa ai tuoi dati personali puoi scrivere a{' '}
                 <a href="mailto:info@uniquiz.pro" className="text-[color:var(--sig)] font-medium hover:underline">info@uniquiz.pro</a>.
               </p>
