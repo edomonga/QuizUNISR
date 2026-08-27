@@ -19,7 +19,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # jsdom (usato dai test) e la libreria realtime di Supabase
+          # richiedono Node 22 o più recente: con Node 20 la build delle
+          # dipendenze falliva ("Node.js 20 detected without native
+          # WebSocket support" + errore di avvio di jsdom).
+          node-version: '22'
           cache: 'npm'
 
       - name: Installa le dipendenze
