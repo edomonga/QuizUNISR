@@ -138,6 +138,12 @@ export default function LoginPage() {
               Scrivici a info@uniquiz.pro
             </a>
           </p>
+
+          <p className="mt-2 text-center text-[11px] text-gray-300">
+            <Link href="/privacy" className="hover:underline hover:text-gray-400">Privacy</Link>
+            {' · '}
+            <Link href="/termini" className="hover:underline hover:text-gray-400">Termini di Servizio</Link>
+          </p>
           </>
           ) : (
           <>
