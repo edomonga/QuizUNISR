@@ -37,7 +37,21 @@ export function computeExamScore(
     if (sel.length === 0) { omitted++; return; }
     if (isAnswerCorrect(sel, correctByQuestion[i] ?? [])) correct++; else wrong++;
   });
-  const raw = correct * rule.correct_score - wrong * rule.wrong_penalty;
-  const scoreIn30 = Math.max(0, Math.round((raw / rule.total_questions) * 30 * 10) / 10);
+  const raw = Number((correct * rule.correct_score - wrong * rule.wrong_penalty).toFixed(10));
+  // Il massimo è il numero di domande MOLTIPLICATO per i punti di una corretta.
+  // Dividere soltanto per le domande penalizzava i corsi con correct_score < 1.
+  const maximum = rule.total_questions * rule.correct_score;
+  const scoreIn30 = maximum > 0 ? roundExamGrade((raw / maximum) * 30) : 0;
   return { correct, wrong, omitted, raw, scoreIn30 };
+}
+
+/** Punti leggibili in italiano, senza residui della rappresentazione binaria. */
+export function formatExamPoints(points: number): string {
+  return new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 }).format(points);
+}
+
+/** Arrotonda solo il voto finale: da 0,5 in su per eccesso, altrimenti per difetto. */
+export function roundExamGrade(score: number): number {
+  // Rimuove esclusivamente il rumore numerico, senza arrotondare prima ai decimi.
+  return Math.max(0, Math.min(30, Math.round(Number(score.toFixed(10)))));
 }
