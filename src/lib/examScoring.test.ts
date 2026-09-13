@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAnswerCorrect, computeExamScore, type ExamScoreRule } from './examScoring';
+import { isAnswerCorrect, computeExamScore, formatExamPoints, roundExamGrade, type ExamScoreRule } from './examScoring';
 
 describe('isAnswerCorrect', () => {
   it('nessuna selezione (omessa) non è mai corretta', () => {
@@ -30,9 +30,9 @@ describe('computeExamScore', () => {
     expect(score.correct).toBe(2);
     expect(score.wrong).toBe(1);
     expect(score.omitted).toBe(1);
-    // raw = 2*1 - 1*0.25 = 1.75 → scoreIn30 = round((1.75/4)*30*10)/10 = 13.1
+    // raw = 1.75 → 13.125/30 → 13 (un solo arrotondamento finale)
     expect(score.raw).toBeCloseTo(1.75);
-    expect(score.scoreIn30).toBeCloseTo(13.1);
+    expect(score.scoreIn30).toBe(13);
   });
 
   it('il punteggio non scende mai sotto zero anche con molte risposte errate', () => {
@@ -59,5 +59,67 @@ describe('computeExamScore', () => {
     const correctByQuestion = [[0], [0], [0], [0]];
     const score = computeExamScore(answers, correctByQuestion, rule);
     expect(score.scoreIn30).toBe(30);
+  });
+});
+
+describe('formatExamPoints', () => {
+  it('mostra 39 risposte da 0,7 punti senza residui decimali', () => {
+    expect(formatExamPoints(39 * 0.7)).toBe('27,3');
+  });
+
+  it('preserva le penalità da un quarto di punto', () => {
+    expect(formatExamPoints(3 * 0.25)).toBe('0,75');
+    expect(formatExamPoints(0)).toBe('0');
+  });
+});
+
+describe('roundExamGrade', () => {
+  it.each([
+    [27.3, 27], [27.4, 27], [27.49, 27], [27.499, 27],
+    [27.5, 28], [27.6, 28], [17.49, 17], [17.5, 18],
+    [29.5, 30], [31.5, 30], [-0.5, 0], [-2, 0], [0, 0],
+    [27.499999999999996, 28],
+  ])('%s diventa %s', (points, expected) => {
+    expect(roundExamGrade(points)).toBe(expected);
+  });
+});
+
+describe('punteggi pesati e normalizzazione', () => {
+  function exam(correct: number, wrong: number, omitted: number, points: number, penalty = 0) {
+    const answers = [...Array.from({ length: correct }, () => [0]),
+      ...Array.from({ length: wrong }, () => [1]),
+      ...Array.from({ length: omitted }, () => [] as number[])];
+    return computeExamScore(answers, answers.map(() => [0]), {
+      correct_score: points, wrong_penalty: penalty, total_questions: answers.length,
+    });
+  }
+
+  it('regressione Testa-Collo: 39 corrette da 0,7 e 6 errate valgono 26/30', () => {
+    expect(exam(39, 6, 0, 0.7)).toEqual({
+      correct: 39, wrong: 6, omitted: 0, raw: 27.3, scoreIn30: 26,
+    });
+  });
+
+  it.each([0.7, 1, 2])('tutte corrette con %s punti valgono 30/30', points => {
+    expect(exam(45, 0, 0, points).scoreIn30).toBe(30);
+  });
+
+  it('le omesse restano nel massimo ottenibile', () => {
+    expect(exam(39, 0, 6, 0.7).scoreIn30).toBe(26);
+  });
+
+  it('sottrae le penalità prima della normalizzazione e arrotonda una sola volta', () => {
+    const score = exam(39, 6, 0, 0.7, 0.25);
+    expect(score.raw).toBe(25.8);
+    expect(score.scoreIn30).toBe(25);
+  });
+
+  it('arrotonda 17,5 a 18 anche nel percorso completo', () => {
+    expect(exam(35, 25, 0, 0.7).scoreIn30).toBe(18);
+  });
+
+  it('un massimo nullo non produce NaN o Infinity', () => {
+    expect(exam(0, 0, 0, 0.7).scoreIn30).toBe(0);
+    expect(exam(4, 0, 0, 0).scoreIn30).toBe(0);
   });
 });

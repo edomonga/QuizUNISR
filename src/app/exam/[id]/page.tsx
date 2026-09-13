@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCourse, pickExamQuestions, recordQuizAnswers, saveExamResult } from '@/lib/db';
 import { saveExamProgress, loadExamProgress, clearExamProgress, type StoredExamProgress } from '@/lib/examProgress';
-import { computeExamScore, isAnswerCorrect } from '@/lib/examScoring';
+import { computeExamScore, isAnswerCorrect, formatExamPoints } from '@/lib/examScoring';
 import { PageShell, Card, Spinner, Modal } from '@/components/ui';
 import { Icon } from '@/components/Icon';
 import type { Course, Question, ExamAnswer } from '@/types';
@@ -72,6 +72,7 @@ export default function ExamPage() {
               ['check', `+${course.exam_rules.correct_score} risposta corretta`],
               ['x', `−${course.exam_rules.wrong_penalty} risposta errata`],
               ['square', `0 risposta omessa`],
+              ['check', 'Voto proporzionale al massimo ottenibile, arrotondato all’intero: da 0,5 per eccesso'],
               (course.exam_rules.no_navigation
                 ? ['lock', 'Navigazione bloccata: non si può tornare indietro, conferma richiesta per ogni domanda']
                 : ['shuffle', 'Navigazione libera avanti e indietro']),
@@ -316,11 +317,11 @@ function ExamRunner({ course, userId, onEnd }: { course: Course; userId: string;
             <div className="grid grid-cols-3 gap-3 mt-5">
               <div className="p-3 bg-emerald-50 rounded-xl">
                 <div className="text-xl font-bold text-emerald-600">{results.correct}</div>
-                <div className="text-xs text-emerald-600 mt-0.5">Corrette<br /><span className="text-gray-400">(+{results.correct * rule.correct_score})</span></div>
+                <div className="text-xs text-emerald-600 mt-0.5">Corrette<br /><span className="text-gray-400">(+{formatExamPoints(results.correct * rule.correct_score)})</span></div>
               </div>
               <div className="p-3 bg-red-50 rounded-xl">
                 <div className="text-xl font-bold text-red-500">{results.wrong}</div>
-                <div className="text-xs text-red-500 mt-0.5">Errate<br /><span className="text-gray-400">(−{(results.wrong * rule.wrong_penalty).toFixed(1)})</span></div>
+                <div className="text-xs text-red-500 mt-0.5">Errate<br /><span className="text-gray-400">(−{formatExamPoints(results.wrong * rule.wrong_penalty)})</span></div>
               </div>
               <div className="p-3 bg-gray-50 rounded-xl">
                 <div className="text-xl font-bold text-gray-500">{results.omitted}</div>
@@ -741,8 +742,8 @@ function TwoPhaseExamRunner({ course, userId, onEnd }: { course: Course; userId:
               );
             })()}
             <div className="grid grid-cols-3 gap-3 mt-5">
-              <div className="p-3 bg-emerald-50 rounded-xl"><div className="text-xl font-bold text-emerald-600">{mainResults.correct}</div><div className="text-xs text-emerald-600 mt-0.5">Corrette<br/><span className="text-gray-400">(+{mainResults.correct})</span></div></div>
-              <div className="p-3 bg-red-50 rounded-xl"><div className="text-xl font-bold text-red-500">{mainResults.wrong}</div><div className="text-xs text-red-500 mt-0.5">Errate<br/><span className="text-gray-400">(−{(mainResults.wrong * rule.wrong_penalty).toFixed(1)})</span></div></div>
+              <div className="p-3 bg-emerald-50 rounded-xl"><div className="text-xl font-bold text-emerald-600">{mainResults.correct}</div><div className="text-xs text-emerald-600 mt-0.5">Corrette<br/><span className="text-gray-400">(+{formatExamPoints(mainResults.correct * rule.correct_score)})</span></div></div>
+              <div className="p-3 bg-red-50 rounded-xl"><div className="text-xl font-bold text-red-500">{mainResults.wrong}</div><div className="text-xs text-red-500 mt-0.5">Errate<br/><span className="text-gray-400">(−{formatExamPoints(mainResults.wrong * rule.wrong_penalty)})</span></div></div>
               <div className="p-3 bg-gray-50 rounded-xl"><div className="text-xl font-bold text-gray-500">{mainResults.omitted}</div><div className="text-xs text-gray-400 mt-0.5">Omesse<br/>(0)</div></div>
             </div>
             <p className="text-xs text-gray-400 mt-3">Punteggio grezzo: {mainResults.raw.toFixed(2)} · Durata: {fmt(dur)}</p>

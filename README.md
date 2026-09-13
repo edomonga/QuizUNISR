@@ -237,3 +237,10 @@ Per ogni utente attivo trovi un selettore di ruolo con tre voci:
 - **Super** — potere pieno come te.
 
 Il limite è applicato anche a livello di database (RLS): un admin limitato **non può** modificare, nemmeno via URL o API, contenuti di anni non suoi. Il tuo stesso account è protetto (non puoi declassarti o eliminarti da solo per errore).
+
+---
+
+## Correzione dei punteggi degli esami
+
+Formula in trentesimi, arrotondamento all'intero e procedura con anteprima
+per i risultati già salvati: [guida al calcolo e al recupero dello storico](docs/exam-scoring.md).
