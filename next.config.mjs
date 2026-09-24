@@ -32,7 +32,11 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      // ${SUPABASE_HOST}: immagini delle domande servite da Supabase Storage
+      // (bucket "question-images"). Senza questa riga il browser le blocca
+      // per violazione della CSP — il sito prova comunque a caricarle
+      // (nessun errore visibile "rotto"), semplicemente non appaiono mai.
+      `img-src 'self' data: blob: ${SUPABASE_HOST}`,
       "font-src 'self' data:",
       // *.sentry.io: invio errori dal browser al monitoraggio Sentry (se
       // configurato). Senza questa riga, la CSP bloccherebbe silenziosamente
