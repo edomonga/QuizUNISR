@@ -8,7 +8,7 @@
 // Supabase. Sostituisci TUOPROGETTO con il subdominio reale
 // (es. abcdefghij.supabase.co).
 
-import { withSentryConfig } from '@sentry/nextjs';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 const SUPABASE_HOST = 'https://mxecukuguyulubminxks.supabase.co';
 
@@ -31,13 +31,16 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
+      // fonts.googleapis.com / fonts.gstatic.com: font Inter importato da
+      // globals.css. Senza queste due voci la CSP lo bloccava e il sito
+      // ripiegava sul font di sistema.
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // ${SUPABASE_HOST}: immagini delle domande servite da Supabase Storage
       // (bucket "question-images"). Senza questa riga il browser le blocca
       // per violazione della CSP — il sito prova comunque a caricarle
       // (nessun errore visibile "rotto"), semplicemente non appaiono mai.
       `img-src 'self' data: blob: ${SUPABASE_HOST}`,
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       // *.sentry.io: invio errori dal browser al monitoraggio Sentry (se
       // configurato). Senza questa riga, la CSP bloccherebbe silenziosamente
       // ogni report anche con Sentry attivo e il DSN impostato.

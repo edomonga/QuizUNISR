@@ -1,4 +1,4 @@
-import { SVGProps } from 'react';
+import type { SVGProps, ReactElement } from 'react';
 
 // ─── Icon system ──────────────────────────────────────────────────────────────
 // Set di icone vettoriali disegnate a mano (tratto coerente 1.75, terminazioni
@@ -18,7 +18,7 @@ export type IconName =
   | 'heart' | 'brain' | 'bone' | 'pill' | 'lungs' | 'tooth' | 'syringe'
   | 'trash' | 'plus' | 'upload' | 'download' | 'search' | 'key' | 'bookmark';
 
-const paths: Record<IconName, JSX.Element> = {
+const paths: Record<IconName, ReactElement> = {
   pulse: <path d="M2 12h4l2.5-6L12 18l2.5-8L18 12h4" />,
   scale: <><path d="M12 4v16" /><path d="M8 20h8" /><path d="M5 7h14" /><path d="M5 7l-3 6" /><path d="M5 7l3 6" /><path d="M2 13a3 3 0 0 0 6 0" /><path d="M19 7l-3 6" /><path d="M19 7l3 6" /><path d="M16 13a3 3 0 0 0 6 0" /><circle cx="12" cy="4" r="1.3" /></>,
   microbe: <><circle cx="12" cy="12" r="6" /><path d="M12 6V3" /><path d="M18 12h3" /><path d="M12 18v3" /><path d="M6 12H3" /><path d="M16.2 7.8l1.8-1.8" /><path d="M7.8 16.2l-1.8 1.8" /><circle cx="10.2" cy="11" r="1" /><circle cx="14" cy="13.6" r="1.2" /></>,
