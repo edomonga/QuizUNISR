@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn, sendPasswordReset } from '@/lib/authHelpers';
+import { signIn, sendPasswordReset, resendConfirmation } from '@/lib/authHelpers';
 import { consumeKicked } from '@/lib/deviceSession';
 import { useAuth } from '@/contexts/AuthContext';
 import { Icon } from '@/components/Icon';
@@ -12,6 +12,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // Email non confermata: pulsante per ricevere un nuovo link (quello vecchio scade in 24 ore).
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [resendError, setResendError] = useState('');
   const [loading, setLoading] = useState(false);
   // Stato "Password dimenticata".
   const [forgot, setForgot] = useState(false);
@@ -40,11 +44,18 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError('');
-    const { user, error: err } = await signIn(email, password);
-    if (err) { setError(err); setLoading(false); return; }
+    setLoading(true); setError(''); setNeedsConfirmation(false); setResendState('idle'); setResendError('');
+    const { user, error: err, needsConfirmation: unconfirmed } = await signIn(email, password);
+    if (err) { setError(err); setNeedsConfirmation(!!unconfirmed); setLoading(false); return; }
     await refresh();
     router.replace(user?.must_change_password ? '/change-password' : '/dashboard');
+  };
+
+  const handleResend = async () => {
+    setResendState('sending'); setResendError('');
+    const { error: err } = await resendConfirmation(email);
+    if (err) { setResendError(err); setResendState('idle'); return; }
+    setResendState('sent');
   };
 
   const handleForgot = async (e: React.FormEvent) => {
@@ -86,6 +97,25 @@ export default function LoginPage() {
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-medium flex items-start gap-2">
               <Icon name="alert" className="w-4 h-4 mt-0.5 flex-shrink-0" /><span>{error}</span>
+            </div>
+          )}
+
+          {needsConfirmation && (
+            <div className="mb-4 -mt-2">
+              {resendState === 'sent' ? (
+                <p className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-medium">
+                  Nuova email di conferma inviata a {email.trim()}. Controlla anche lo spam.
+                </p>
+              ) : (
+                <>
+                  <button type="button" onClick={handleResend} disabled={resendState === 'sending'}
+                    className="w-full py-2.5 text-sm font-semibold rounded-xl border-2 border-[color:var(--sig)] text-[color:var(--sig)] hover:bg-[color:var(--sig-soft)] transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2">
+                    <Icon name="mail" className="w-4 h-4" />
+                    {resendState === 'sending' ? 'Invio in corso…' : 'Reinvia email di conferma'}
+                  </button>
+                  {resendError && <p className="mt-2 text-xs text-red-600">{resendError}</p>}
+                </>
+              )}
             </div>
           )}
 
