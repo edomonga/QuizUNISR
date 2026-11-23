@@ -1,0 +1,73 @@
+name: Backup database
+
+# Backup notturno gratuito del database Supabase (alternativa al piano Pro).
+# Ogni notte scarica una copia completa (ruoli, struttura, dati incluso
+# l'elenco utenti di auth), la comprime, la cifra con una password e la
+# conserva 7 giorni tra gli "Artifacts" di questa Action.
+#
+# Segreti richiesti (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL    stringa di connessione "Session pooler" di Supabase
+#   BACKUP_PASSPHRASE  password con cui viene cifrato il backup
+#
+# Come ripristinare: docs/backup.md
+
+on:
+  schedule:
+    - cron: '17 2 * * *'   # ogni notte alle 02:17 UTC (03:17 / 04:17 in Italia)
+  workflow_dispatch:       # pulsante "Run workflow" per un backup immediato
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Controlla i segreti
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Mancano i segreti SUPABASE_DB_URL e/o BACKUP_PASSPHRASE (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Scarica il database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          mkdir backup
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f backup/data.sql --use-copy --data-only
+          ls -la backup
+          # Un file dati sotto 1 MB vuol dire che qualcosa non va:
+          # meglio fallire (e ricevere l'email di GitHub) che conservare un backup vuoto.
+          test "$(stat -c%s backup/data.sql)" -gt 1000000
+
+      - name: Comprimi e cifra
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          NAME="uniquiz-backup-$(date -u +%Y-%m-%d)"
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+          tar -czf "$NAME.tar.gz" backup
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 0 --symmetric --cipher-algo AES256 \
+            -o "$NAME.tar.gz.gpg" "$NAME.tar.gz"
+          rm -rf backup "$NAME.tar.gz"
+          ls -la "$NAME.tar.gz.gpg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: ${{ env.NAME }}.tar.gz.gpg
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
