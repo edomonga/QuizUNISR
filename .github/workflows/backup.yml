@@ -34,9 +34,12 @@ jobs:
             exit 1
           fi
 
+      # Versione fissa: con "latest" la Action interroga l'API di GitHub e può
+      # fallire per limite di richieste. La 3.x ha cambiato le opzioni di
+      # "db dump" (--db-url -> --remote): aggiornare solo dopo averle adattate.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.122.1
 
       - name: Scarica il database
         env:
