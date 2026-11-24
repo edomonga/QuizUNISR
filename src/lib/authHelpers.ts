@@ -29,8 +29,30 @@ export async function signUp(email: string, password: string, displayName: strin
   return { error: null };
 }
 
+/** Traduce gli errori di Supabase sul reinvio della conferma in un messaggio chiaro. */
+export function resendErrorMessage(raw: string): string {
+  const msg = raw.toLowerCase();
+  if (msg.includes('rate limit') || msg.includes('security purposes') || msg.includes('too many')) {
+    return 'Hai già richiesto un\'email da poco. Attendi un minuto e riprova.';
+  }
+  if (msg.includes('already confirmed')) {
+    return 'Questa email risulta già confermata: prova ad accedere.';
+  }
+  return 'Invio non riuscito. Riprova tra qualche minuto o scrivi a info@uniquiz.pro.';
+}
+
+/** Reinvia l'email di conferma della registrazione (il link precedente scade dopo 24 ore). */
+export async function resendConfirmation(email: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: email.trim(),
+    options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+  });
+  return { error: error ? resendErrorMessage(error.message || '') : null };
+}
+
 /** Sign in with email + password */
-export async function signIn(email: string, password: string): Promise<{ user: AuthUser | null; error: string | null }> {
+export async function signIn(email: string, password: string): Promise<{ user: AuthUser | null; error: string | null; needsConfirmation?: boolean }> {
   // Azzera SUBITO l'id di sessione locale: durante il login l'evento SIGNED_IN
   // può far partire il controllo "un solo dispositivo" prima che la nuova
   // sessione sia rivendicata. Con l'id locale assente il controllo non
@@ -43,7 +65,11 @@ export async function signIn(email: string, password: string): Promise<{ user: A
     // del generico "credenziali errate" (che confonderebbe chi si è appena iscritto).
     const msg = (error.message || '').toLowerCase();
     if (msg.includes('not confirmed') || (error as { code?: string }).code === 'email_not_confirmed') {
-      return { user: null, error: 'Devi prima confermare la tua email: controlla la casella di posta (anche nello spam) e clicca sul link di conferma.' };
+      return {
+        user: null,
+        needsConfirmation: true,
+        error: 'Devi prima confermare la tua email: controlla la casella di posta (anche nello spam) e clicca sul link di conferma. Il link vale 24 ore: se è scaduto, richiedine uno nuovo qui sotto.',
+      };
     }
     return { user: null, error: 'Email o password non corretti.' };
   }

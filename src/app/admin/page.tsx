@@ -20,6 +20,7 @@ import {
 import { invalidateQuestionsCache } from '@/lib/questionsCache';
 import { parseCorrect } from '@/lib/importParsing';
 import { compressImage } from '@/lib/imageUpload';
+import { resendConfirmation } from '@/lib/authHelpers';
 import type { Profile, Course, MacroArea, Topic, Question, ExamRules } from '@/types';
 
 type Tab = 'users' | 'courses' | 'questions' | 'reports';
@@ -135,6 +136,38 @@ function UsersTab() {
     setTimeout(() => setMsg(null), 3500);
   };
 
+  // Reinvio dell'email di conferma a chi non ha confermato (link scaduto dopo 24 ore).
+  const [showUnconfirmed, setShowUnconfirmed] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendingAll, setResendingAll] = useState(false);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+
+  const resendOne = async (p: Profile) => {
+    setResendingId(p.id);
+    const { error } = await resendConfirmation(p.email);
+    setResendingId(null);
+    if (error) { flash('err', `${p.email}: ${error}`); return; }
+    setSentIds(prev => new Set(prev).add(p.id));
+    flash('ok', `Email di conferma inviata a ${p.email}.`);
+  };
+
+  // Uno alla volta, con una breve pausa: Supabase limita il numero di email all'ora.
+  const resendAll = async () => {
+    setResendingAll(true);
+    const targets = profiles.filter(p => !p.is_active && !p.email_confirmed && !sentIds.has(p.id));
+    let ok = 0; let lastError = '';
+    for (const p of targets) {
+      const { error } = await resendConfirmation(p.email);
+      if (error) { lastError = error; continue; }
+      ok++;
+      setSentIds(prev => new Set(prev).add(p.id));
+      await new Promise(r => setTimeout(r, 400));
+    }
+    setResendingAll(false);
+    if (ok === targets.length) flash('ok', `Email di conferma inviate a ${ok} utenti.`);
+    else flash('err', `Inviate ${ok} su ${targets.length}. Ultimo errore: ${lastError}`);
+  };
+
   const toggle = async (id: string, field: 'is_active' | 'is_admin', val: boolean) => {
     const { error } = await updateProfile(id, { [field]: val });
     if (error) flash('err', error);
@@ -238,7 +271,7 @@ function UsersTab() {
   // ancora confermata non è approvabile (non potrebbe comunque accedere) e resta
   // fuori dalla lista, con un contatore per trasparenza.
   const pending = filterProfiles(profiles.filter(p => !p.is_active && p.email_confirmed));
-  const awaitingEmailCount = profiles.filter(p => !p.is_active && !p.email_confirmed).length;
+  const unconfirmed = filterProfiles(profiles.filter(p => !p.is_active && !p.email_confirmed));
   const active = filterProfiles(profiles.filter(p => p.is_active));
 
   return (
@@ -263,14 +296,46 @@ function UsersTab() {
         )}
       </div>
 
-      {awaitingEmailCount > 0 && (
-        <div className="flex items-start gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-500">
-          <Icon name="mail" className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
-          <span>
-            {awaitingEmailCount} {awaitingEmailCount === 1 ? 'utente registrato non ha' : 'utenti registrati non hanno'} ancora
-            confermato l&apos;email: {awaitingEmailCount === 1 ? 'comparirà' : 'compariranno'} qui per l&apos;attivazione dopo la conferma.
-          </span>
-        </div>
+      {unconfirmed.length > 0 && (
+        <Card className="border border-gray-200">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <button onClick={() => setShowUnconfirmed(s => !s)} className="text-left min-w-0">
+              <h3 className="font-semibold text-gray-700 text-sm flex items-center gap-1.5">
+                <Icon name="mail" className="w-4 h-4" />Email non confermata ({unconfirmed.length})
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Il link di conferma scade dopo 24 ore. Dopo la conferma compariranno in &ldquo;In attesa di attivazione&rdquo;.
+                {' '}<span className="text-[color:var(--sig)] font-medium">{showUnconfirmed ? 'Nascondi' : 'Mostra'}</span>
+              </p>
+            </button>
+            <button onClick={resendAll} disabled={resendingAll || unconfirmed.every(p => sentIds.has(p.id))}
+              className="text-xs bg-[rgb(32,44,71)] text-white font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 inline-flex items-center gap-1.5">
+              <Icon name="mail" className="w-3.5 h-3.5" />{resendingAll ? 'Invio in corso…' : 'Reinvia a tutti'}
+            </button>
+          </div>
+          {showUnconfirmed && (
+            <div className="space-y-2 mt-3">
+              {unconfirmed.map(p => (
+                <div key={p.id} className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl">
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-800 text-sm">{p.display_name}</div>
+                    <div className="text-xs text-gray-500 truncate">
+                      {p.email} · registrato il {new Date(p.created_at).toLocaleDateString('it-IT')}
+                    </div>
+                  </div>
+                  {sentIds.has(p.id) ? (
+                    <span className="flex-shrink-0 text-xs font-semibold text-emerald-600 inline-flex items-center gap-1"><Icon name="check" className="w-3.5 h-3.5" />Inviata</span>
+                  ) : (
+                    <button onClick={() => resendOne(p)} disabled={resendingId === p.id || resendingAll}
+                      className="flex-shrink-0 text-xs border border-gray-300 bg-white text-gray-700 font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-50">
+                      {resendingId === p.id ? 'Invio…' : 'Reinvia'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       )}
 
       {pending.length > 0 && (
